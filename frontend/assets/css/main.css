@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    /* The page background stays dark in both themes; only the card is light in
+       light mode (its contents keep the default slate-900 text). */
+    @apply bg-slate-950 text-slate-900 antialiased transition-colors;
+  }
+  .dark body {
+    @apply text-slate-100;
+  }
+}
+
+@layer components {
+  .field-label {
+    @apply block text-sm font-medium text-slate-700 mb-1 dark:text-slate-300;
+  }
+  .field-input {
+    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm
+      focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500
+      dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100
+      dark:placeholder-slate-500 dark:focus:border-sky-400 dark:focus:ring-sky-400;
+  }
+  .btn-primary {
+    @apply inline-flex w-full items-center justify-center rounded-lg bg-sky-600 px-4 py-2
+      text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500
+      disabled:cursor-not-allowed disabled:opacity-50
+      dark:bg-sky-500 dark:hover:bg-sky-400;
+  }
+  .btn-social {
+    @apply inline-flex min-w-[7rem] flex-1 items-center justify-center gap-2 rounded-lg border
+      border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition
+      hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50
+      shadow-[inset_0_-2px_3px_-1px_rgba(15,23,42,0.065),0_2px_3px_-1px_rgba(15,23,42,0.08)]
+      active:translate-y-px
+      active:shadow-[inset_0_-1px_2px_-1px_rgba(15,23,42,0.08),0_1px_2px_-1px_rgba(15,23,42,0.08)]
+      dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700
+      dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),inset_0_-2px_3px_-1px_rgba(0,0,0,0.5),0_2px_3px_-1px_rgba(0,0,0,0.45)]
+      dark:active:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),inset_0_-1px_2px_-1px_rgba(0,0,0,0.5),0_1px_2px_-1px_rgba(0,0,0,0.45)];
+  }
+  /* Gradient border echoing the glows behind the card: fades from the neutral
+     translucent edge colour at top/bottom to a bright sky blue at the vertical
+     centre (where the left/right glows sit). Painted with the border-box /
+     padding-box background-clip trick over a real 1px border so every edge
+     rasterises at the same width (a masked ring rounds each side independently
+     and looks thicker on one side at fractional display scaling). */
+  .card {
+    @apply relative w-full max-w-md rounded-2xl p-8 shadow-xl;
+    border: 1px solid transparent;
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      linear-gradient(
+          to bottom,
+          rgba(15, 23, 42, 0.05),
+          rgba(56, 189, 248, 0.45) 50%,
+          rgba(15, 23, 42, 0.05)
+        )
+        border-box;
+  }
+  .dark .card {
+    background:
+      linear-gradient(#0f172a, #0f172a) padding-box,
+      linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.1),
+          rgba(56, 189, 248, 0.45) 50%,
+          rgba(255, 255, 255, 0.1)
+        )
+        border-box;
+  }
+  .link {
+    @apply font-medium text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300;
+  }
+}

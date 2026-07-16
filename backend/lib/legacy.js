@@ -1,0 +1,67 @@
+import { config } from './config.js'
+
+/**
+ * Client for the legacy Django system.
+ *
+ * This is the piece of business logic that MUST live in the backend: verifying
+ * a user's credentials against the old system before we recreate their account
+ * in authentik. The exact transport depends on your legacy setup — this
+ * implementation assumes the old system exposes a small internal HTTP API:
+ *
+ *   POST <LEGACY_API_URL>/verify  { username_or_email, password }
+ *        -> 200 { username, email, name, ...profile } on success
+ *        -> 401 on bad credentials
+ *
+ * Swap the body of these functions for a direct DB read, an LDAP bind, or
+ * whatever the legacy system actually offers. The rest of the migration flow
+ * (routes/migration.js) only depends on the shape returned here.
+ */
+
+function legacyEnabled() {
+  return Boolean(config.legacy.apiUrl)
+}
+
+/**
+ * Verify legacy credentials. Returns the legacy profile on success, or `null`
+ * if the credentials are wrong / the account does not exist.
+ */
+export async function verifyLegacyCredentials(identifier, password) {
+  if (!legacyEnabled()) {
+    throw new LegacyError('Legacy migration is not configured (set LEGACY_API_URL)', 501)
+  }
+
+  const response = await fetch(`${config.legacy.apiUrl.replace(/\/+$/, '')}/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(config.legacy.apiToken ? { Authorization: `Token ${config.legacy.apiToken}` } : {})
+    },
+    body: JSON.stringify({ username_or_email: identifier, password })
+  })
+
+  if (response.status === 401 || response.status === 404) return null
+  if (!response.ok) {
+    throw new LegacyError(`Legacy system error (HTTP ${response.status})`, 502)
+  }
+
+  const profile = await response.json()
+  return {
+    username: profile.username,
+    email: profile.email,
+    name: profile.name ?? profile.full_name ?? profile.username,
+    // Anything else worth carrying over lands in authentik user attributes.
+    attributes: {
+      legacy_id: profile.id ?? profile.pk ?? null,
+      migrated_from: 'django',
+      ...profile.attributes
+    }
+  }
+}
+
+export class LegacyError extends Error {
+  constructor(message, status = 502) {
+    super(message)
+    this.name = 'LegacyError'
+    this.status = status
+  }
+}
