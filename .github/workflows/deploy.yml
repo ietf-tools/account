@@ -77,7 +77,7 @@ jobs:
         run: npm run build:frontend
         env:
           NUXT_APP_BASE_URL: /app/
-          NUXT_PUBLIC_API_URL: /app/api
+          NUXT_PUBLIC_API_URL: /app-api
 
       - name: Stage assets under /app
         # Nuxt emits flat files (_nuxt/…) but the HTML references them at
