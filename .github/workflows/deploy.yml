@@ -1,0 +1,146 @@
+name: Build and Deploy
+run-name: Build ${{ github.run_number }} of branch ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get Next Version
+        id: semver
+        uses: ietf-tools/semver-action@v1
+        with:
+          token: ${{ github.token }}
+          branch: main
+          skipInvalidTags: true
+          patchList: fix, bugfix, perf, refactor, test, tests, chore
+
+      - name: Set package.json version
+        run: |
+          yq -iP '.version = "${{ steps.semver.outputs.nextStrict }}"' package.json -o json
+
+      # -------------------------------------------------------------
+      # BACKEND
+      # -------------------------------------------------------------
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: .
+          file: docker/release.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/ietf-tools/account-backend:${{ steps.semver.outputs.nextStrict }}
+
+      # -------------------------------------------------------------
+      # FRONTEND
+      # -------------------------------------------------------------
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SPA
+        # ssr:false generate — no backend secrets needed at build time. Pin the
+        # base URL and API path explicitly so the build never depends on the
+        # `npm run build` default (which points the API at /api).
+        run: npm run build:frontend
+        env:
+          NUXT_APP_BASE_URL: /app/
+          NUXT_PUBLIC_API_URL: /app/api
+
+      - name: Stage assets under /app
+        # Nuxt emits flat files (_nuxt/…) but the HTML references them at
+        # /app/_nuxt/… (base URL /app/). Relocate the output under dist/app/ so
+        # the Worker serves each file at the path its HTML expects, and copy the
+        # SPA shell to dist/index.html for the not-found fallback.
+        run: |
+          rm -rf dist
+          mkdir -p dist/app
+          cp -r .output/public/. dist/app/
+          cp .output/public/200.html dist/index.html
+
+      # -------------------------------------------------------------
+      # DEPLOY
+      # -------------------------------------------------------------
+
+      - name: Create Draft Release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          prerelease: true
+          draft: false
+          owner: ietf-tools
+          repo: account
+          commit: ${{ github.sha }}
+          tag: ${{ steps.semver.outputs.nextStrict }}
+          name: ${{ steps.semver.outputs.nextStrict }}
+          body: '*pending*'
+          token: ${{ github.token }}
+
+      - name: Generate CHANGELOG
+        id: changelog
+        uses: Requarks/changelog-action@v1
+        with:
+          token: ${{ github.token }}
+          fromTag: ${{ steps.semver.outputs.nextStrict }}
+          toTag: ${{ steps.semver.outputs.current }}
+          writeToFile: false
+
+      - name: Finalize Release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          allowUpdates: true
+          makeLatest: true
+          draft: false
+          owner: ietf-tools
+          repo: account
+          tag: ${{ steps.semver.outputs.nextStrict }}
+          name: ${{ steps.semver.outputs.nextStrict }}
+          body: ${{ steps.changelog.outputs.changes }}
+          token: ${{ github.token }}
+
+      - name: Deploy backend to production
+        uses: ietf-tools/workflow-dispatch-action@v1
+        with:
+          workflow: deploy.yml
+          repo: ietf-tools/infra-k8s
+          ref: main
+          token: ${{ secrets.GH_INFRA_K8S_TOKEN }}
+          inputs: '{ "environment":"gaia", "app":"account", "appVersion":"${{ steps.semver.outputs.nextStrict }}", "remoteRef":"${{ github.sha }}" }'
+
+      - name: Deploy frontend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CF_WORKER_DEPLOY_TOKEN }}
+          accountId: ${{ secrets.CF_WORKER_DEPLOY_ACCOUNT_ID }}
+          command: deploy

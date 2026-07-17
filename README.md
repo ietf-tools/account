@@ -1,4 +1,4 @@
-# authentik-ui
+# IETF Account
 
 PRIVATE — a fully custom, headless front-end for [authentik](https://goauthentik.io).
 
