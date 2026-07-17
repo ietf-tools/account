@@ -9,8 +9,12 @@ import { config } from './config.js'
  * implementation assumes the old system exposes a small internal HTTP API:
  *
  *   POST <LEGACY_API_URL>/verify  { username_or_email, password }
- *        -> 200 { username, email, name, ...profile } on success
+ *        -> 200 { username, email | emails[], name, ...profile } on success
  *        -> 401 on bad credentials
+ *
+ * A Datatracker account can have several email addresses associated with it, so
+ * the profile may carry an `emails` array; a lone `email` is treated as a
+ * single-element list.
  *
  * Swap the body of these functions for a direct DB read, an LDAP bind, or
  * whatever the legacy system actually offers. The rest of the migration flow
@@ -45,9 +49,12 @@ export async function verifyLegacyCredentials(identifier, password) {
   }
 
   const profile = await response.json()
+  // A Datatracker account can own multiple emails. Normalise to a de-duplicated
+  // list, accepting either an `emails` array or a single `email`.
+  const emails = [...new Set((Array.isArray(profile.emails) ? profile.emails : [profile.email]).filter(Boolean))]
   return {
     username: profile.username,
-    email: profile.email,
+    emails,
     name: profile.name ?? profile.full_name ?? profile.username,
     // Anything else worth carrying over lands in authentik user attributes.
     attributes: {

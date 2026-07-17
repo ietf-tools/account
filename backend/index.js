@@ -53,9 +53,11 @@ app.decorate('authenticate', async (request, reply) => {
   }
 })
 
-await app.register(healthRoutes, { prefix: '/api' })
-await app.register(authRoutes, { prefix: '/api/auth' })
-await app.register(migrationRoutes, { prefix: '/api/migration' })
+// All API routes live under config.apiPrefix (default "/api", "/app/api" in the
+// account.ietf.org production deployment — see lib/config.js).
+await app.register(healthRoutes, { prefix: config.apiPrefix })
+await app.register(authRoutes, { prefix: `${config.apiPrefix}/auth` })
+await app.register(migrationRoutes, { prefix: `${config.apiPrefix}/migration` })
 
 // In production the built SPA (nuxt generate -> .output/public) is served by
 // this same server, so the browser only ever talks to one origin.
@@ -65,7 +67,7 @@ await app
   .then(() => {
     // SPA fallback: anything not matched above returns index.html.
     app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith('/api')) {
+      if (request.url.startsWith(config.apiPrefix || '/api')) {
         reply.code(404).send({ error: 'Not found' })
       } else {
         reply.sendFile('index.html')

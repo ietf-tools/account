@@ -45,7 +45,8 @@
         "oxc.oxc-vscode",
         "bradlc.vscode-tailwindcss",
         "mrmlnc.vscode-duplicate",
-        "oderwat.indent-rainbow"
+        "oderwat.indent-rainbow",
+        "tamasfe.even-better-toml"
       ]
     }
   }

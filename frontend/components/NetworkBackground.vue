@@ -4,8 +4,8 @@
 // endpoints into more diagonals, spreading across the screen like a signal
 // propagating through a network. Little packet-blocks travel each segment, and
 // segments fade out over their lifetime while fresh roots keep seeding. Sits
-// behind all content (pointer-events-none, negative z-index), adapts to the
-// light/dark theme every frame, and stays idle under prefers-reduced-motion.
+// behind all content (pointer-events-none, negative z-index) and stays idle
+// under prefers-reduced-motion.
 const canvas = ref(null)
 
 // The four 45° directions, plus a helper to pick a segment's continuations:
@@ -221,8 +221,8 @@ function frame(now) {
   raf = requestAnimationFrame(frame)
   ctx.clearRect(0, 0, width, height)
 
-  // The backdrop uses the dark palette in both themes (the page background is
-  // dark either way — only the card is light in light mode).
+  // The backdrop uses the dark palette (the page background is dark; only the
+  // card is light).
   const rgb = '56,189,248'
   const maxLine = 0.14
 

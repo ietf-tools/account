@@ -1,0 +1,24 @@
+# Cloudflare Worker (static assets) for the IETF Account SPA.
+#
+# This is an assets-only Worker — no server code (`main`), just the prebuilt
+# Nuxt SPA. The CI build (.github/workflows/deploy-frontend.yml) runs
+# `nuxt generate` and stages the output under dist/app/ so the files' physical
+# paths match the /app/ base URL baked into the HTML (assets are referenced as
+# /app/_nuxt/*). A copy of the app shell is placed at dist/index.html for the
+# SPA not-found fallback.
+name = "account-frontend"
+compatibility_date = "2026-07-01"
+
+# The app is served at account.ietf.org/app/* — authentik owns the domain root
+# and the backend is proxied at /app/api, so this Worker only owns /app/*.
+# Adjust zone_name if account.ietf.org is its own Cloudflare zone; remove this
+# block entirely to manage the route from the dashboard instead.
+routes = [
+  { pattern = "account.ietf.org/app/*", zone_name = "ietf.org" }
+]
+
+[assets]
+directory = "./dist"
+# Paths that don't match a generated file fall back to the app shell
+# (dist/index.html) with a 200, so client-side routing can take over.
+not_found_handling = "single-page-application"

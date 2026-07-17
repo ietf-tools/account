@@ -130,34 +130,34 @@ function continueWithSource(source) {
 
 <template>
   <div class="card">
-    <h1 class="mb-1 text-xl font-semibold text-slate-900 dark:text-slate-100">
+    <h1 class="mb-1 text-xl font-semibold text-slate-900">
       {{ title || challenge?.flow_info?.title || 'Authentik' }}
     </h1>
-    <p v-if="challenge?.pending_user" class="mb-6 text-sm text-slate-500 dark:text-slate-400">
+    <p v-if="challenge?.pending_user" class="mb-6 text-sm text-slate-500">
       Continue as {{ challenge.pending_user }}
       <button type="button" class="link" :disabled="loading" @click="begin">(Not you?)</button>
     </p>
     <div v-else class="mb-6" />
 
     <!-- Global (non-field) errors -->
-    <div v-if="error" class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
+    <div v-if="error" class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
       {{ error }}
     </div>
     <div
       v-for="msg in challenge?.response_errors?.non_field_errors"
       :key="msg.code"
-      class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300"
+      class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
     >
       {{ msg.string }}
     </div>
 
     <!-- Flow complete -->
-    <div v-if="complete" class="text-sm text-slate-600 dark:text-slate-300">
+    <div v-if="complete" class="text-sm text-slate-600">
       <slot name="complete">You're all set.</slot>
     </div>
 
     <!-- Initial load -->
-    <div v-else-if="!challenge" class="py-6 text-center text-sm text-slate-400 dark:text-slate-500">Loading…</div>
+    <div v-else-if="!challenge" class="py-6 text-center text-sm text-slate-400">Loading…</div>
 
     <!-- Active stage -->
     <form v-else ref="formEl" @submit.prevent="onSubmit" class="space-y-4">
@@ -205,11 +205,11 @@ function continueWithSource(source) {
       <template v-else-if="component === 'ak-stage-prompt'">
         <div v-for="field in challenge.fields" :key="field.field_key">
           <template v-if="field.type === 'static' || field.type === 'hidden'">
-            <p v-if="field.type === 'static'" class="text-sm text-slate-600 dark:text-slate-300" v-html="field.initial_value" />
+            <p v-if="field.type === 'static'" class="text-sm text-slate-600" v-html="field.initial_value" />
           </template>
           <template v-else-if="field.type === 'checkbox'">
-            <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input v-model="model[field.field_key]" type="checkbox" class="rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800" />
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+              <input v-model="model[field.field_key]" type="checkbox" class="rounded border-slate-300" />
               <span v-html="field.label" />
             </label>
           </template>
@@ -239,17 +239,17 @@ function continueWithSource(source) {
 
       <!-- Email stage (e.g. recovery link sent) -->
       <template v-else-if="component === 'ak-stage-email'">
-        <p class="text-sm text-slate-600 dark:text-slate-300">
+        <p class="text-sm text-slate-600">
           Check your inbox — we've sent you an email to continue.
         </p>
       </template>
 
       <!-- Anything we haven't styled yet: surface it so it's never a dead end. -->
       <template v-else>
-        <p class="text-sm text-slate-600 dark:text-slate-300">
+        <p class="text-sm text-slate-600">
           Unsupported stage <code>{{ component }}</code>. Add a branch in FlowExecutor.vue.
         </p>
-        <pre class="overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800 dark:text-slate-200">{{ challenge }}</pre>
+        <pre class="overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{{ challenge }}</pre>
       </template>
 
       <button v-if="component !== 'ak-stage-email'" type="submit" class="btn-primary" :disabled="loading">
@@ -264,10 +264,10 @@ function continueWithSource(source) {
     >
       <div class="relative">
         <div class="absolute inset-0 flex items-center" aria-hidden="true">
-          <div class="w-full border-t border-slate-200 dark:border-slate-700" />
+          <div class="w-full border-t border-slate-200" />
         </div>
         <div class="relative flex justify-center">
-          <span class="bg-white px-2 text-xs uppercase tracking-wide text-slate-400 dark:bg-slate-900 dark:text-slate-500">
+          <span class="bg-white px-2 text-xs uppercase tracking-wide text-slate-400">
             or continue with
           </span>
         </div>
@@ -281,7 +281,7 @@ function continueWithSource(source) {
           :disabled="loading"
           @click="continueWithSource(source)"
         >
-          <img v-if="source.icon_url" :src="source.icon_url" :alt="`${source.name} logo`" class="h-5 w-5 dark:invert" />
+          <img v-if="source.icon_url" :src="source.icon_url" :alt="`${source.name} logo`" class="h-5 w-5" />
           <span>{{ source.name }}</span>
         </button>
       </div>
@@ -293,7 +293,7 @@ function continueWithSource(source) {
       <slot name="alternatives" />
     </div>
 
-    <div class="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+    <div class="mt-6 text-center text-sm text-slate-500">
       <slot name="footer" />
     </div>
   </div>

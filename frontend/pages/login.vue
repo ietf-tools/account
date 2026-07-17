@@ -33,8 +33,8 @@ onMounted(async () => {
 
 <template>
   <div v-if="finalizing" class="card text-center">
-    <h1 class="mb-1 text-xl font-semibold text-slate-900 dark:text-slate-100">Signing you in…</h1>
-    <p class="text-sm text-slate-500 dark:text-slate-400">Completing your social login.</p>
+    <h1 class="mb-1 text-xl font-semibold text-slate-900">Signing you in…</h1>
+    <p class="text-sm text-slate-500">Completing your social login.</p>
   </div>
 
   <FlowExecutor v-else kind="authentication" title="Sign in" @complete="onComplete">
@@ -42,10 +42,10 @@ onMounted(async () => {
     <template #alternatives>
       <div class="relative">
         <div class="absolute inset-0 flex items-center" aria-hidden="true">
-          <div class="w-full border-t border-slate-200 dark:border-slate-700" />
+          <div class="w-full border-t border-slate-200" />
         </div>
         <div class="relative flex justify-center">
-          <span class="bg-white px-2 text-xs uppercase tracking-wide text-slate-400 dark:bg-slate-900 dark:text-slate-500">
+          <span class="bg-white px-2 text-xs uppercase tracking-wide text-slate-400">
             or migrate from
           </span>
         </div>
@@ -57,9 +57,9 @@ onMounted(async () => {
       </div>
     </template>
     <template #footer>
-      <hr class="mb-6 border-t border-slate-200 dark:border-slate-700" />
+      <hr class="mb-6 border-t border-slate-200" />
       <div class="space-y-1">
-        <p v-if="socialError" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
+        <p v-if="socialError" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {{ socialError }}
         </p>
         <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
