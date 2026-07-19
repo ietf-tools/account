@@ -2,7 +2,7 @@
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
-const api = useApi()
+const ak = useAuthentik()
 
 // True while we resolve the session after returning from a social login.
 const finalizing = ref(route.query.social === 'return')
@@ -14,17 +14,23 @@ function onComplete(user) {
 }
 
 // Coming back from a source (Google/GitHub/Apple) login: authentik has set its
-// session cookie on this shared host, so ask the backend to adopt it. On success
-// we're signed in exactly as if a password flow had completed.
+// session cookie on this shared host, so the browser is already authenticated —
+// just resolve who signed in. On success we're signed in exactly as if a password
+// flow had completed. (This only works in production, where the app and authentik
+// share account.ietf.org; it cannot complete against a remote authentik in dev.)
 onMounted(async () => {
   if (!finalizing.value) {
     return
   }
   try {
-    const { user } = await api('/auth/social/finalize', { method: 'POST' })
-    onComplete(user)
+    const body = await ak('/core/users/me/')
+    const user = body.user ?? body
+    if (isAnonymous(user)) {
+      throw new Error('Social login did not complete')
+    }
+    onComplete(toSessionUser(user))
   } catch (e) {
-    socialError.value = e?.data?.error || 'Social sign-in could not be completed. Please try again.'
+    socialError.value = e?.data?.detail || 'Social sign-in could not be completed. Please try again.'
     finalizing.value = false
     router.replace({ query: {} })
   }

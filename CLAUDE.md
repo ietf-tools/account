@@ -7,11 +7,17 @@ Brief for working in this repo. See [README.md](README.md) for the fuller narrat
 A **headless, fully-custom front-end for [authentik](https://goauthentik.io)** — the public-facing
 IETF Account UI (sign in, register, password reset, legacy migration). authentik is the identity
 source of truth and runs separately; this app owns the entire UX by driving authentik's **Flow
-Executor API** from a backend-for-frontend (BFF). There is **no admin surface** and **no database**.
+Executor API** — **directly from the browser**. There is **no admin surface** and **no database**.
+
+The app and authentik share one host in production (`account.ietf.org`), so the SPA calls authentik's
+`/api/v3` **same-origin**: authentik's own cookies are set on and replayed by the browser, exactly as
+its stock UI works. authentik therefore sees the real client IP/origin. The Fastify backend is **not**
+in the auth path — it exists only for custom features that need the admin API token (legacy migration).
 
 ```
-Browser ──► Nuxt SPA (frontend/) ──► Fastify BFF (backend/) ──► authentik API
-                                          └──► legacy Django system (migration only)
+Browser ──► Nuxt SPA (frontend/) ──► authentik API      (all auth flows, same-origin)
+                     └────────────► Fastify backend (backend/) ──► authentik admin API
+                                                              └──► legacy Django system   (migration only)
 ```
 
 ## Stack & layout
@@ -23,58 +29,81 @@ Browser ──► Nuxt SPA (frontend/) ──► Fastify BFF (backend/) ──�
 ```
 backend/
   index.js            Fastify bootstrap: CORS, cookie, session, static SPA, route registration
-  lib/authentik.js    Headless client: Flow Executor + admin API + cookie-jar helpers
+  lib/authentik.js    Admin client (service-account token) — used only by migration
   lib/config.js       Env config (throws on missing SESSION_SECRET / AUTHENTIK_URL)
   lib/legacy.js       Legacy Django client (migration only)
-  routes/auth.js      Flow bridge (begin/submit), /session, /logout, /social/finalize
-  routes/migration.js Legacy → authentik account migration
+  routes/migration.js Legacy → authentik account migration (the only auth-ish backend route)
 frontend/
   components/FlowExecutor.vue  Dynamic authentik challenge renderer (the core UI)
-  composables/useFlow.js       Drives one flow via the backend; useApi.js = $fetch w/ credentials
-  stores/auth.js               Pinia session store
+  composables/useAuthentik.js  $fetch pointed at authentik /api/v3 (credentials + CSRF header)
+  composables/useFlow.js       Drives one flow straight against authentik's executor
+  composables/useApi.js        $fetch pointed at the app backend (migration only)
+  utils/authentik.js           toSessionUser, source-URL resolution, isFlowComplete
+  stores/auth.js               Pinia session store (resolves the user via /core/users/me/)
   pages/                       login, register, recover, migrate, index (protected)
   layouts/default.vue          Centered card, IETF logo + glows, no header bar
   middleware/auth.js           Route guard; plugins/auth.client.js resolves session on boot
 ```
 
-## Core model: the Flow Executor bridge
+## Core model: driving the Flow Executor from the browser
 
 authentik has no traditional "login API". Every flow (authentication/enrollment/recovery) is a state
 machine of **challenges** (JSON keyed by `component`, e.g. `ak-stage-identification`,
-`ak-stage-password`). The BFF `begin`s a flow and relays each `challenge` to the SPA;
-[FlowExecutor.vue](frontend/components/FlowExecutor.vue) renders it, collects input, and `submit`s.
-The flow's cookie jar is held **server-side** in the Fastify session and replayed on each call.
-Completion = the terminal `xak-flow-redirect`; the backend then resolves the user via
-`/core/users/me/` and stores a trimmed record in the session.
+`ak-stage-password`). [useFlow.js](frontend/composables/useFlow.js) `GET`s the executor to begin and
+`POST`s to advance — **directly against authentik** via [useAuthentik.js](frontend/composables/useAuthentik.js)
+(`credentials: 'include'`, plus the `X-authentik-CSRF` header echoed from the `authentik_csrf` cookie).
+The flow's cookies live in the browser — there is no server-side jar.
+[FlowExecutor.vue](frontend/components/FlowExecutor.vue) renders each challenge, collects input, and
+submits. Completion = the terminal `xak-flow-redirect`; the SPA then resolves the user via
+`/core/users/me/` and keeps a trimmed record in the Pinia store.
 
 **Adding UI for a new stage:** add a branch in FlowExecutor's template keyed on `component`.
 Unhandled stages render a labelled fallback (never a dead end), so the app degrades gracefully.
 
+**Restarting a flow ("Not you?"):** authentik holds the in-progress plan in its session (keyed by the
+browser cookie), so a bare executor `GET` *resumes* mid-flow rather than starting over. `begin()` in
+[useFlow.js](frontend/composables/useFlow.js) therefore first hits authentik's `CancelView`
+(`/flows/-/cancel/`, a sibling of `/api/v3` — see `flowsCancelUrl`) to discard the plan, then GETs the
+first challenge. There is no executor query-param for this. (The old BFF got this for free by using a
+fresh cookie jar per `begin`.)
+
 ## Gotchas (read before changing auth)
 
-- **Invariant: the browser never talks to authentik directly — EXCEPT social login.** OAuth requires
-  a real browser redirect, so social login is the one exception (see below). Don't "fix" that
-  asymmetry by routing password flows through the browser.
-- **Social / source logins** ([routes/auth.js](backend/routes/auth.js) `/social/finalize`,
-  FlowExecutor `continueWithSource`): buttons come from `challenge.sources` on the identification
-  stage (backend rewrites them to absolute `url`/`icon_url`). Clicking does a full-page redirect to
-  authentik with `?next=…/login?social=return`. On return, login.vue calls `POST /auth/social/finalize`,
-  which **rebuilds authentik's cookie jar from the incoming request cookies** (`authentik_*`) and
-  resolves the user. **This only works because the app is deployed on the same host as authentik**
-  (`account.ietf.org`) so authentik's session cookie reaches the BFF. It **cannot complete in local
-  dev** (frontend on `localhost`, authentik remote).
+- **Invariant: the browser talks to authentik's Flow Executor directly; the backend never proxies
+  auth.** This works because the app and authentik are same-origin in prod (`account.ietf.org`, app
+  under `/app/`, authentik API at `/api/v3`). The backend (`backend/`) is **only** for features that
+  need the admin token — currently just migration. Don't route auth flows back through it.
+- **CSRF:** authentik/Django checks Origin/Referer (the browser sets these, same-origin ⇒ OK) and
+  expects the `authentik_csrf` cookie echoed as `X-authentik-CSRF` on unsafe methods —
+  [useAuthentik.js](frontend/composables/useAuthentik.js) does this in `onRequest`. This relies on
+  authentik's `authentik_csrf` cookie being JS-readable (not `HttpOnly`), which is its default.
+- **Social / source logins** (FlowExecutor `continueWithSource`, [login.vue](frontend/pages/login.vue)):
+  buttons come from `challenge.sources` on the identification stage; [utils/authentik.js](frontend/utils/authentik.js)
+  `withSources` rewrites them to absolute `url`/`icon_url` client-side. Clicking does a full-page
+  redirect to authentik with `?next=…/login?social=return`. On return, login.vue simply calls
+  `/core/users/me/` — the browser already holds authentik's session cookie (same host), so there's
+  nothing to "finalize" server-side. It **cannot complete in local dev** (frontend on `localhost`,
+  authentik remote — the cross-site session cookie won't stick).
 - **Deployment mount:** app runs under **`/app/`** on `account.ietf.org`; authentik owns the domain
   root (including `/api`). Hence `app.baseURL='/app/'` and the app's own API is at **`/app/api`**
   (not `/api`, to avoid colliding with authentik). The reverse proxy must route `/app/*` to this
   app's backend and **strip the `/app` prefix** (backend still serves `/api` + static at root).
-  Overridable via `NUXT_APP_BASE_URL` / `NUXT_PUBLIC_API_URL`.
+  authentik keeps serving `/api/v3` at the root, which is what the SPA hits directly.
+  Overridable via `NUXT_APP_BASE_URL` / `NUXT_PUBLIC_API_URL` / `NUXT_PUBLIC_AUTHENTIK_API_URL`.
+- **Local dev** (`npm run dev`): the browser is on `localhost:3000`, so Nuxt's `devProxy`
+  ([nuxt.config.ts](nuxt.config.ts)) forwards `/api/v3` → the remote `AUTHENTIK_URL` (and `/app/api` →
+  the backend) to keep everything same-origin. Password/enrollment/recovery flows work; **social
+  login can't complete in dev**, and if authentik sets `Secure` cookies they won't stick over
+  `http://localhost` — test full sign-in against the deployed same-host environment.
 - **`autofocus` does not fire** on SPA navigation or Vue stage swaps. Focus programmatically instead —
   FlowExecutor focuses the first field on every `challenge` change (`focusFirstField` + `formEl` ref);
   migrate.vue focuses on mount via a ref. Follow this pattern for new focusable steps.
 - **Client-side validation** lives in FlowExecutor (`validateIdentification`): empty/invalid email is
   blocked before submit and shown inline; server-side field errors come from `response_errors`.
-- **Sessions are in-memory** — a restart logs everyone out; multi-instance needs a shared store
-  (swap in [backend/index.js](backend/index.js)). Backend session cookie is `sessionId`.
+- **Identity = authentik's session**, resolved live via `/core/users/me/` on boot
+  ([stores/auth.js](frontend/stores/auth.js)); there's no app-side login session, so a backend restart
+  does *not* log anyone out. The backend's in-memory session (cookie `sessionId`) now holds **only**
+  the legacy migration's two-step handoff; multi-instance would still want a shared store there.
 - **Admin API token** (`AUTHENTIK_API_TOKEN`) is used **only** by the migration flow, not normal auth.
 
 ## Conventions

@@ -5,11 +5,14 @@ export const useAuthStore = defineStore('auth', () => {
   const ready = ref(false)
   const isAuthenticated = computed(() => Boolean(user.value))
 
+  // Identity is whatever authentik says: resolve the current user straight from
+  // authentik (same-origin in prod), no app-side session involved.
   async function fetchSession() {
-    const api = useApi()
+    const ak = useAuthentik()
     try {
-      const { user: current } = await api('/auth/session')
-      user.value = current
+      const body = await ak('/core/users/me/')
+      const current = body.user ?? body
+      user.value = isAnonymous(current) ? null : toSessionUser(current)
     } catch {
       user.value = null
     } finally {
@@ -22,9 +25,10 @@ export const useAuthStore = defineStore('auth', () => {
     ready.value = true
   }
 
+  // End the authentik session by running its invalidation flow directly.
   async function logout() {
-    const api = useApi()
-    await api('/auth/logout', { method: 'POST' }).catch(() => {})
+    const ak = useAuthentik()
+    await ak('/flows/executor/default-invalidation-flow/?query=').catch(() => {})
     user.value = null
   }
 

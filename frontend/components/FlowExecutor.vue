@@ -1,8 +1,8 @@
 <script setup>
 // Renders an authentik flow as a sequence of challenges and submits each stage
-// back through the backend bridge. This is where you fully own the login UI:
-// every stage below is just markup you control, driven by the challenge JSON
-// authentik hands back. Add branches here as you enable more stages.
+// straight to authentik's Flow Executor (see useFlow). This is where you fully
+// own the login UI: every stage below is just markup you control, driven by the
+// challenge JSON authentik hands back. Add branches here as you enable more stages.
 const props = defineProps({
   kind: { type: String, required: true }, // authentication | enrollment | recovery
   title: { type: String, default: '' }
@@ -113,7 +113,7 @@ function inputType(field) {
 // browser has to leave to authentik (and on to Google/GitHub/Apple) and come
 // back. We send it to the source's login URL with a `next` that returns to this
 // same page carrying `?social=return`, which login.vue picks up to finalize the
-// session. `source.url` is the absolute endpoint the backend resolved for us.
+// session. `source.url` is the absolute endpoint withSources() resolved for us.
 function continueWithSource(source) {
   if (!source.url) {
     return
@@ -157,7 +157,14 @@ function continueWithSource(source) {
     </div>
 
     <!-- Initial load -->
-    <div v-else-if="!challenge" class="py-6 text-center text-sm text-slate-400">Loading…</div>
+    <div v-else-if="!challenge" class="flex flex-col items-center gap-3 py-6 text-sm text-slate-400">
+      <span
+        class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500"
+        role="status"
+        aria-label="Loading"
+      />
+      <span>Loading…</span>
+    </div>
 
     <!-- Active stage -->
     <form v-else ref="formEl" @submit.prevent="onSubmit" class="space-y-4">

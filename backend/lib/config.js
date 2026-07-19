@@ -37,12 +37,9 @@ export const config = {
   authentik: {
     // Normalise: strip any trailing slash so we can join paths safely.
     url: required('AUTHENTIK_URL').replace(/\/+$/, ''),
-    apiToken: process.env.AUTHENTIK_API_TOKEN ?? '',
-    flows: {
-      authentication: process.env.AUTHENTIK_FLOW_AUTHENTICATION ?? 'default-authentication-flow',
-      enrollment: process.env.AUTHENTIK_FLOW_ENROLLMENT ?? 'default-enrollment-flow',
-      recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'default-recovery-flow'
-    }
+    // Service-account token — used only by backend features (legacy migration).
+    // Flow slugs live in the frontend now (the SPA drives flows directly).
+    apiToken: process.env.AUTHENTIK_API_TOKEN ?? ''
   },
 
   legacy: {

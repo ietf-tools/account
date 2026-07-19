@@ -16,8 +16,26 @@ const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://localhost:4000'
 const baseURL = process.env.NUXT_APP_BASE_URL ?? '/app/'
 
 // The app's own API lives under the app base (…/app/api) so it never collides
-// with authentik's /api at the domain root.
+// with authentik's /api at the domain root. It's used only for custom features
+// (the legacy migration) — auth flows go straight to authentik.
 const apiUrl = process.env.NUXT_PUBLIC_API_URL ?? `${baseURL.replace(/\/+$/, '')}/api`
+
+// authentik's own API. In production the SPA and authentik share account.ietf.org,
+// so this is same-origin at the domain root (/api/v3) and the browser drives the
+// Flow Executor directly. In dev it's proxied below to the remote authentik.
+const authentikApiUrl = process.env.NUXT_PUBLIC_AUTHENTIK_API_URL ?? '/api/v3'
+
+// Flow slugs the SPA drives directly. Same env vars the backend used to read, so
+// there's one source of truth; these are the authentik defaults.
+const flows = {
+  authentication: process.env.AUTHENTIK_FLOW_AUTHENTICATION ?? 'default-authentication-flow',
+  enrollment: process.env.AUTHENTIK_FLOW_ENROLLMENT ?? 'default-enrollment-flow',
+  recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'default-recovery-flow'
+}
+
+// Dev only: base URL of the remote authentik to proxy /api/v3 to. In production
+// this is unused (same-origin). Reuses AUTHENTIK_URL from the backend's .env.
+const devAuthentikUrl = (process.env.AUTHENTIK_URL ?? '').replace(/\/+$/, '')
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-06-28',
@@ -27,6 +45,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiUrl,
+      authentikApiUrl,
+      flows,
       appVersion
     }
   },
@@ -36,6 +56,28 @@ export default defineNuxtConfig({
   },
   nitro: {
     devProxy: {
+      // authentik's API -> remote authentik (only when AUTHENTIK_URL is set).
+      // In dev the browser is on localhost, so proxying keeps flow calls
+      // same-origin. Note: social login still can't complete in dev, and if
+      // authentik sets Secure cookies they won't stick over http://localhost —
+      // test full sign-in against the deployed same-host environment.
+      ...(devAuthentikUrl
+        ? {
+            [authentikApiUrl]: {
+              target: `${devAuthentikUrl}/api/v3`,
+              changeOrigin: true,
+              cookieDomainRewrite: 'localhost'
+            },
+            // authentik's browser flow views (e.g. /flows/-/cancel/, used to
+            // restart a flow) live at the root, not under /api/v3.
+            '/flows': {
+              target: `${devAuthentikUrl}/flows`,
+              changeOrigin: true,
+              cookieDomainRewrite: 'localhost'
+            }
+          }
+        : {}),
+      // The app's own backend (migration).
       [apiUrl]: {
         target: `${backendUrl}/api`,
         changeOrigin: true,

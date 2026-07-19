@@ -9,7 +9,6 @@ import sensible from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
 
 import { config } from './lib/config.js'
-import authRoutes from './routes/auth.js'
 import migrationRoutes from './routes/migration.js'
 import healthRoutes from './routes/health.js'
 
@@ -31,10 +30,10 @@ await app.register(cors, {
 
 await app.register(cookie)
 
-// In-memory session store: authentik is the source of truth, so the session
-// only needs to hold the in-flight flow cookie jar + the resolved user for the
-// life of a browser session. For a multi-instance deployment, put a shared
-// store (Redis) here instead — no schema/migrations required either way.
+// In-memory session store: authentik owns auth (the browser drives its flows
+// directly), so the only server-side state is the legacy migration's two-step
+// handoff — see routes/migration.js. For a multi-instance deployment, put a
+// shared store (Redis) here instead — no schema/migrations required either way.
 await app.register(session, {
   secret: config.session.secret,
   cookie: {
@@ -46,17 +45,10 @@ await app.register(session, {
   saveUninitialized: false
 })
 
-// Guard for routes that require an authenticated authentik session.
-app.decorate('authenticate', async (request, reply) => {
-  if (!request.session.user) {
-    reply.code(401).send({ error: 'Not authenticated' })
-  }
-})
-
 // All API routes live under config.apiPrefix (default "/api", "/app/api" in the
-// account.ietf.org production deployment — see lib/config.js).
+// account.ietf.org production deployment — see lib/config.js). Auth flows are NOT
+// here: the SPA talks to authentik directly. This backend is migration-only.
 await app.register(healthRoutes, { prefix: config.apiPrefix })
-await app.register(authRoutes, { prefix: `${config.apiPrefix}/auth` })
 await app.register(migrationRoutes, { prefix: `${config.apiPrefix}/migration` })
 
 // In production the built SPA (nuxt generate -> .output/public) is served by

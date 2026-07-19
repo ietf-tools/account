@@ -19,6 +19,13 @@ const DIRS = [
 const MAX_GEN = 9
 const MAX_SEGMENTS = 55
 const MARGIN = 16
+// While a connection is being "negotiated" its line is dashed and the dashes
+// march forward; the pattern below sets the dash/gap size, the marching speed
+// (px/ms), and how long the final merge-to-solid takes.
+const DASH = 5
+const DASH_GAP = 6
+const DASH_SPEED = 0.03
+const MERGE_MS = 900
 
 let ctx = null
 let raf = 0
@@ -111,6 +118,10 @@ function addSegment(a, dir, gen, now) {
     born: now,
     // Speed is roughly constant, so longer segments take longer to draw.
     drawDur: length * rand(2.4, 3.4),
+    // "Negotiation" window after the line finishes drawing: it stays dashed
+    // (with the dashes marching forward) for this long, then the gaps close up
+    // and it becomes a solid, "established" connection.
+    settleDur: rand(1000, 3000),
     life: rand(9000, 16000),
     fadeOut: 2200,
     branched: false,
@@ -271,12 +282,28 @@ function frame(now) {
     const ex = l.a.x + (l.b.x - l.a.x) * p
     const ey = l.a.y + (l.b.y - l.a.y) * p
 
+    // Dashed while the connection negotiates, then the gap eases to zero so the
+    // line resolves into a solid, "established" link. `negotiateEnd` is the end
+    // of drawing plus the settle window.
+    const negotiateEnd = l.drawDur + l.settleDur
+    if (age < negotiateEnd) {
+      let gap = DASH_GAP
+      const mergeStart = negotiateEnd - MERGE_MS
+      if (age > mergeStart) {
+        gap = DASH_GAP * (1 - (age - mergeStart) / MERGE_MS)
+      }
+      ctx.setLineDash([DASH, gap])
+      // Negative offset marches the dashes forward, from a → b.
+      ctx.lineDashOffset = -(now * DASH_SPEED) % (DASH + DASH_GAP)
+    }
+
     ctx.strokeStyle = `rgba(${rgb},${alpha})`
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(l.a.x, l.a.y)
     ctx.lineTo(ex, ey)
     ctx.stroke()
+    ctx.setLineDash([])
 
     ctx.fillStyle = `rgba(${rgb},${alpha * 1.7})`
     for (const pt of [l.a, l.b]) {
@@ -296,7 +323,7 @@ function frame(now) {
       if (!l.branched && age >= l.drawDur + l.branchDelay) {
         branch(l, now)
       }
-      if (remaining > l.fadeOut && now >= l.nextPacket) {
+      if (age >= negotiateEnd && remaining > l.fadeOut && now >= l.nextPacket) {
         // Traffic flows both ways, in a mix of sizes; mostly blue with the
         // occasional IETF-logo yellow packet (#fdd34f).
         l.packets.push({
