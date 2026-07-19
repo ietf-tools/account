@@ -1,11 +1,14 @@
 # Cloudflare Worker (static assets) for the IETF Account SPA.
 #
 # This is an assets-only Worker — no server code (`main`), just the prebuilt
-# Nuxt SPA. The CI build (.github/workflows/deploy-frontend.yml) runs
-# `nuxt generate` and stages the output under dist/app/ so the files' physical
-# paths match the /app/ base URL baked into the HTML (assets are referenced as
-# /app/_nuxt/*). A copy of the app shell is placed at dist/index.html for the
-# SPA not-found fallback.
+# Nuxt SPA. The CI build (.github/workflows/deploy.yml) runs `nuxt generate` and
+# stages the output under dist/app/ so the files' physical paths match the /app/
+# base URL baked into the HTML (assets are referenced as /app/_nuxt/*). A copy of
+# the app shell is placed at dist/index.html for the SPA not-found fallback.
+#
+# Redirects (bare root "/" → /app/, and authentik's /if/user → /app/) are handled
+# by Cloudflare Redirect Rules, not here — see the "Edge routing & redirects"
+# section in README.md.
 name = "account-frontend"
 compatibility_date = "2026-07-01"
 

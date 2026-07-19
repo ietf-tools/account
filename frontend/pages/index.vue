@@ -28,6 +28,12 @@ async function onLogout() {
       </div>
     </dl>
 
-    <button class="btn-social mt-6 w-full" @click="onLogout">Sign out</button>
+    <div class="mt-6 space-y-3">
+      <!-- Same-origin link out to authentik's admin UI at the domain root; a plain
+           anchor (not NuxtLink) so it leaves the SPA rather than being resolved
+           under the /app/ base. Only superusers can reach /if/admin/. -->
+      <a v-if="auth.user?.isSuperuser" href="/if/admin/" class="btn-primary">Administration</a>
+      <button class="btn-social w-full" @click="onLogout">Sign out</button>
+    </div>
   </div>
 </template>

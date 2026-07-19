@@ -32,6 +32,9 @@ export function toSessionUser(user) {
     email: user.email,
     avatar: user.avatar,
     isActive: user.is_active,
+    // authentik grants admin-interface access to superusers; /core/users/me/
+    // reports it as is_superuser on the self serializer.
+    isSuperuser: Boolean(user.is_superuser),
     groups: user.groups_obj?.map((g) => g.name) ?? []
   }
 }
