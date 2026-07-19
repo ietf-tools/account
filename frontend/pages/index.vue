@@ -15,13 +15,9 @@ async function onLogout() {
     <h1 class="mb-1 text-xl font-semibold text-slate-900">
       Welcome, {{ auth.user?.name || auth.user?.username }}
     </h1>
-    <p class="mb-6 text-sm text-slate-500">You're signed in through authentik.</p>
+    <p class="mb-6 text-sm text-slate-500">You're signed in to your IETF account.</p>
 
     <dl class="space-y-2 text-sm">
-      <div class="flex justify-between border-b border-slate-100 py-1">
-        <dt class="text-slate-500">Username</dt>
-        <dd class="font-medium">{{ auth.user?.username }}</dd>
-      </div>
       <div class="flex justify-between border-b border-slate-100 py-1">
         <dt class="text-slate-500">Email</dt>
         <dd class="font-medium">{{ auth.user?.email }}</dd>

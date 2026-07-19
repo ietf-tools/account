@@ -71,13 +71,18 @@ jobs:
         run: npm ci
 
       - name: Build SPA
-        # ssr:false generate — no backend secrets needed at build time. Pin the
-        # base URL and API path explicitly so the build never depends on the
+        # ssr:false generate — the SPA drives authentik's flows directly, so the
+        # flow slugs are read from env at BUILD time (nuxt.config.ts bakes them
+        # into runtimeConfig.public.flows). They are not secrets. Pin the base
+        # URL and API path explicitly too, so the build never depends on the
         # `npm run build` default (which points the API at /api).
         run: npm run build:frontend
         env:
           NUXT_APP_BASE_URL: /app/
           NUXT_PUBLIC_API_URL: /app-api
+          AUTHENTIK_FLOW_AUTHENTICATION: ietf-login
+          AUTHENTIK_FLOW_ENROLLMENT: ietf-enrollment
+          AUTHENTIK_FLOW_RECOVERY: ietf-recovery
 
       - name: Stage assets under /app
         # Nuxt emits flat files (_nuxt/…) but the HTML references them at
