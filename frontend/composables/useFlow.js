@@ -9,20 +9,36 @@
 // advance, and the flow's cookies live in the browser (not a server-side jar).
 // The terminal `xak-flow-redirect` component means authentication succeeded, at
 // which point we resolve the user via /core/users/me/.
-export function useFlow(kind) {
+// `options`:
+//   resume — RESUME the plan authentik already has in the session instead of
+//     cancelling it first. Set this when a third-party app initiated the flow
+//     (authentik redirected the browser to /if/flow/<slug>/?client_id=… and we
+//     intercepted it): the plan carries the OAuth request, so cancelling would
+//     drop it and the app would never get its code.
+//   query — the flow page's original querystring (client_id=…&redirect_uri=…),
+//     forwarded to the executor exactly as authentik's stock flow UI would.
+export function useFlow(kind, options = {}) {
   const ak = useAuthentik()
   const runtime = useRuntimeConfig()
   const slug = runtime.public.flows[kind]
 
+  const resume = Boolean(options.resume)
+  const query = options.query ?? ''
+
   const challenge = ref(null)
   const complete = ref(false)
   const user = ref(null)
+  // Where authentik wants the browser to go once the flow finishes (the terminal
+  // xak-flow-redirect's `to`). For a provider-initiated flow this is the
+  // continuation back to the third-party app; for a standalone login it's an
+  // authentik default we ignore in favour of our own home page.
+  const redirectTo = ref(null)
   const loading = ref(false)
   const error = ref(null)
 
   // The executor URL. `query` mirrors the flow page's querystring; empty is what
   // a fresh, headless start uses.
-  const executorUrl = `/flows/executor/${slug}/?query=`
+  const executorUrl = `/flows/executor/${slug}/?query=${encodeURIComponent(query)}`
   const cancelUrl = flowsCancelUrl(runtime.public.authentikApiUrl)
 
   // Discard any existing server-side flow plan so the next executor GET re-plans
@@ -50,7 +66,10 @@ export function useFlow(kind) {
     challenge.value = withSources(next)
     complete.value = isFlowComplete(next)
     if (complete.value) {
-      user.value = await resolveUser()
+      redirectTo.value = next.to ?? null
+      // In resume (provider) mode the caller follows redirectTo, so resolving the
+      // local user is best-effort — don't let it fail the flow.
+      user.value = await resolveUser().catch(() => null)
     }
     return { challenge: challenge.value, complete: complete.value, user: user.value }
   }
@@ -74,11 +93,13 @@ export function useFlow(kind) {
   const begin = () =>
     run(
       (async () => {
-        await reset()
+        if (!resume) {
+          await reset()
+        }
         return ak(executorUrl, { method: 'GET' })
       })()
     )
   const submit = (payload) => run(ak(executorUrl, { method: 'POST', body: payload ?? {} }))
 
-  return { challenge, complete, user, loading, error, begin, submit }
+  return { challenge, complete, user, redirectTo, loading, error, begin, submit }
 }

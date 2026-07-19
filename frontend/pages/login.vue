@@ -8,6 +8,11 @@ const ak = useAuthentik()
 const finalizing = ref(route.query.social === 'return')
 const socialError = ref(null)
 
+// A third-party app sent the user here to sign in (authentik redirected its
+// /if/flow/<slug>/?client_id=… to us — see the edge rule in README). Resume
+// authentik's existing plan and, once done, follow its redirect back to the app.
+const isProviderFlow = computed(() => Boolean(route.query.client_id))
+
 function onComplete(user) {
   auth.setUser(user)
   router.push('/')
@@ -43,7 +48,7 @@ onMounted(async () => {
     <p class="text-sm text-slate-500">Completing your social login.</p>
   </div>
 
-  <FlowExecutor v-else kind="authentication" title="Sign in" @complete="onComplete">
+  <FlowExecutor v-else kind="authentication" title="Sign in" :resume="isProviderFlow" @complete="onComplete">
     <template #complete>Signed in — redirecting…</template>
     <template #alternatives>
       <div class="relative">

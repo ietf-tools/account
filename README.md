@@ -189,12 +189,17 @@ In production `account.ietf.org` is fronted by Cloudflare. **authentik owns the
 domain root** — `/`, `/api/v3`, `/if/*`, `/flows/*`, `/source/*`, `/static/*` —
 and this app is mounted under **`/app/*`** (SPA on a Cloudflare Worker, see
 [`wrangler.toml`](wrangler.toml)) with its backend at `/app/api`. Because this app
-owns the entire public UX, two **Cloudflare Redirect Rules** keep users on the
-custom front-end instead of ever seeing authentik's stock UI. **Both are needed** —
-the first handles cold landings, the second handles the authentik fallback
-landing (e.g. after a social login that didn't carry a `next`).
+owns the entire public UX, three **Cloudflare Redirect Rules** keep users on the
+custom front-end instead of ever seeing authentik's stock UI:
 
-Both live in the **Cloudflare dashboard** (Rules → Redirect Rules), not in this
+- Rule 1 handles cold landings on the bare root.
+- Rule 2 handles authentik's fallback landing (e.g. after a social login that
+  didn't carry a `next`).
+- Rule 3 handles **third-party OAuth logins**: when another app sends the user to
+  authentik to sign in, authentik would otherwise render its own login UI at
+  `/if/flow/ietf-login/` (see "Third-party OAuth logins" below).
+
+All live in the **Cloudflare dashboard** (Rules → Redirect Rules), not in this
 repo — the Worker deliberately stays a plain assets-only deploy. They're
 documented here so they aren't lost tribal knowledge.
 
@@ -202,8 +207,11 @@ documented here so they aren't lost tribal knowledge.
 | --- | --- | --- | --- |
 | 1 | root → `/app/` | `http.request.uri.path eq "/"` | Someone landing on the bare domain root |
 | 2 | `/if/user*` → `/app/` | `starts_with(http.request.uri.path, "/if/user")` | authentik dropping the user on its own UI post-login / post-social when no `next` was carried |
+| 3 | `/if/flow/ietf-login/` → `/app/login` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-login/"` | A third-party app's OAuth login landing on authentik's stock flow UI |
 
-Both use **`302` → `https://account.ietf.org/app/`**.
+Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rule 3 must
+**preserve the OAuth querystring**, so make it a *dynamic* redirect:
+`concat("https://account.ietf.org/app/login?", http.request.uri.query)` (302).
 
 **Rule 1 must match the root exactly** (`eq "/"`, not `starts_with`) — a prefix
 match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/*`
@@ -212,10 +220,38 @@ match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/
 **Rule 2 must stay a Cloudflare rule** rather than a Worker route: giving the
 Worker an `/if/*` route would collide with authentik, which needs the rest of
 `/if/*` — especially `/if/flow/*`, the flow-executor UI that social/OAuth returns
-render in. For the same reason, do **not** redirect `/if/flow/*`, `/source/*`,
-`/flows/*`, `/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
+render in. So do **not** blanket-redirect `/if/flow/*`, `/source/*`, `/flows/*`,
+`/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
+
+**Rule 3 is the scoped exception** to that `/if/flow/*` warning: it matches the
+authentication flow slug *exactly* (`/if/flow/ietf-login/`), so it leaves every
+other flow — social-source returns, recovery-email links, MFA setup — rendering
+in authentik. Keep it exact; if you point a social source at the *same*
+`ietf-login` flow and it needs an interactive stage on return, it will also route
+here (the SPA resumes it, which generally works, but is the one overlap to watch).
+
+### Third-party OAuth logins
+
+authentik is also an **OAuth/OIDC provider**: other apps send users to it to sign
+in. That path (`/application/o/authorize/?client_id=…`) builds a flow plan bound
+to the OAuth request and 302s to authentik's stock flow UI. Rule 3 above
+intercepts that and sends it to `/app/login`, where the SPA takes over **in resume
+mode**:
+
+- [`login.vue`](frontend/pages/login.vue) detects the provider flow by the
+  `client_id` query param and passes `:resume` to
+  [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue).
+- In resume mode [`useFlow.js`](frontend/composables/useFlow.js) **does not** cancel
+  the plan (cancelling would drop the OAuth request — the app would never get its
+  code) and forwards the original querystring to the executor.
+- On completion the SPA follows authentik's terminal redirect (`xak-flow-redirect`
+  → `to`) back to the app, instead of routing to its own home page.
+
+Explicit-consent providers add an `ak-stage-consent` stage, which FlowExecutor
+renders. This path **can't be exercised in local dev** (authentik is remote), so
+verify it against a same-host deployment with a real OAuth client.
 
 > The root redirect (rule 1) *could* instead be a `main` Worker script owning an
 > exact `account.ietf.org/` route, which would version-control it in this repo.
-> We keep both redirects together in Cloudflare instead, so there's a single
+> We keep all three redirects together in Cloudflare instead, so there's a single
 > place to reason about edge routing and the Worker stays assets-only.

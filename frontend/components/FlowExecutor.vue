@@ -5,11 +5,22 @@
 // challenge JSON authentik hands back. Add branches here as you enable more stages.
 const props = defineProps({
   kind: { type: String, required: true }, // authentication | enrollment | recovery
-  title: { type: String, default: '' }
+  title: { type: String, default: '' },
+  // Set when a third-party app initiated this flow (see login.vue): resume
+  // authentik's existing plan instead of restarting, and on completion follow
+  // its redirect back to the app rather than emitting `complete`.
+  resume: { type: Boolean, default: false }
 })
 const emit = defineEmits(['complete'])
 
-const { challenge, complete, user, loading, error, begin, submit } = useFlow(props.kind)
+// Forward the page's OAuth querystring (client_id=…&redirect_uri=…) to the
+// executor, exactly as authentik's stock flow UI does. Empty for a normal login.
+const query = import.meta.client ? window.location.search.replace(/^\?/, '') : ''
+
+const { challenge, complete, user, redirectTo, loading, error, begin, submit } = useFlow(props.kind, {
+  resume: props.resume,
+  query
+})
 
 // Local form model, reset whenever the stage changes.
 const model = reactive({})
@@ -44,9 +55,17 @@ watch(challenge, (c) => {
 })
 
 watch(complete, (done) => {
-  if (done) {
-    emit('complete', user.value)
+  if (!done) {
+    return
   }
+  // Provider-initiated flow: hand the browser to authentik's terminal redirect,
+  // which continues the OAuth exchange and returns to the third-party app with
+  // its code. A standalone login has no such downstream, so the page takes over.
+  if (props.resume && redirectTo.value) {
+    window.location.assign(redirectTo.value)
+    return
+  }
+  emit('complete', user.value)
 })
 
 onMounted(begin)
@@ -242,6 +261,21 @@ function continueWithSource(source) {
           </template>
           <p v-if="errorFor(field.field_key)" class="mt-1 text-sm text-red-600">{{ errorFor(field.field_key) }}</p>
         </div>
+      </template>
+
+      <!-- OAuth consent (explicit-consent providers): confirm access. Submitting
+           the empty form advances the flow, which redirects back to the app. -->
+      <template v-else-if="component === 'ak-stage-consent'">
+        <p class="text-sm text-slate-600">
+          <span class="font-medium">{{ challenge.flow_info?.title || 'An application' }}</span>
+          is requesting access to your IETF account.
+        </p>
+        <ul
+          v-if="challenge.permissions?.length"
+          class="list-disc space-y-1 pl-5 text-sm text-slate-600"
+        >
+          <li v-for="perm in challenge.permissions" :key="perm.id">{{ perm.name }}</li>
+        </ul>
       </template>
 
       <!-- Email stage (e.g. recovery link sent) -->
