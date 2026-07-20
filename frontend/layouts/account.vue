@@ -51,8 +51,15 @@ const items = [
   }
 ]
 
+// Compare paths ignoring a trailing slash: the static host serves the initial
+// page at "/account/applications/" (slash), while `to` and client-side nav use
+// no slash — without normalizing, the active tab wouldn't highlight on first load.
+function normalizePath(path) {
+  return path.replace(/\/+$/, '') || '/'
+}
+
 function isActive(to) {
-  return route.path === to
+  return normalizePath(route.path) === normalizePath(to)
 }
 
 const initial = computed(() => {

@@ -10,12 +10,6 @@
 // comes back as response_errors on a re-presented prompt. Same dev-mock fallback
 // as the other tabs.
 
-// The settings prompt carries a hidden, immutable `username` field. It must never
-// be echoed back on submit, or authentik's user_write rejects the whole write.
-function isUsernameField(field) {
-  return field.type === 'username' || field.field_key === 'username'
-}
-
 export function useProfile() {
   const ak = useAuthentik()
   const auth = useAuthStore()
@@ -62,10 +56,11 @@ export function useProfile() {
         delete values[key]
       }
       for (const field of all) {
-        // `static` is display-only; `username` is a hidden, immutable field on
-        // this instance — sending either back makes user_write reject the write
-        // ("Not allowed to change username"). Skip both so they're never submitted.
-        if (field.type === 'static' || isUsernameField(field)) {
+        // Only submit fields the user can actually edit. `static` is display-only,
+        // and `hidden` fields are pre-filled immutable values (e.g. username) —
+        // echoing those back makes user_write reject the write ("Not allowed to
+        // change username"). Skip both so only visible inputs are sent.
+        if (field.type === 'static' || field.type === 'hidden') {
           continue
         }
         values[field.field_key] = field.initial_value ?? (field.type === 'checkbox' ? false : '')
