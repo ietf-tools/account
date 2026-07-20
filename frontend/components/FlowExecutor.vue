@@ -574,6 +574,22 @@ function continueWithSource(source) {
         </p>
       </template>
 
+      <!-- Access denied: a terminal stage explaining why the flow can't continue
+           (e.g. no allowed MFA authenticator). No submit — the header's "Not you?"
+           is the way back. -->
+      <template v-else-if="component === 'ak-stage-access-denied'">
+        <div class="flex flex-col items-center gap-3 py-4 text-center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" class="h-20 w-20 text-red-500" aria-hidden="true">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+            />
+          </svg>
+          <p class="text-sm text-red-700">{{ challenge.error_message || 'Access denied.' }}</p>
+        </div>
+      </template>
+
       <!-- Anything we haven't styled yet: surface it so it's never a dead end. -->
       <template v-else>
         <p class="text-sm text-slate-600">
@@ -583,7 +599,7 @@ function continueWithSource(source) {
       </template>
 
       <button
-        v-if="component !== 'ak-stage-email' && !(component === 'ak-stage-authenticator-validate' && !selectedDevice)"
+        v-if="component !== 'ak-stage-email' && component !== 'ak-stage-access-denied' && !(component === 'ak-stage-authenticator-validate' && !selectedDevice)"
         type="submit"
         class="btn-primary"
         :disabled="loading"
