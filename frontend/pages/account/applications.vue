@@ -1,10 +1,10 @@
 <script setup>
 // The signed-in user's application library — the apps authentik says they can
 // launch, mirroring authentik's own user view. Data comes straight from
-// authentik's /core/applications/ via useApplications().
-definePageMeta({ middleware: 'auth', layout: 'wide' })
+// authentik's /core/applications/ via useApplications(). Rendered inside the
+// account shell (layout: 'account'), so no outer panel here.
+definePageMeta({ middleware: 'auth', layout: 'account' })
 
-const auth = useAuthStore()
 const { apps, loading, error, usingSample, load } = useApplications()
 
 // Section the apps by their authentik `group`, the way authentik's library does.
@@ -40,23 +40,8 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="rounded-2xl bg-white p-6 shadow-xl outline outline-[6px] outline-sky-400/40 sm:p-8">
-    <div class="mb-6 flex items-start justify-between gap-4">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-900">Your applications</h1>
-        <p class="mt-1 text-sm text-slate-500">
-          Apps you can access with your IETF account.
-        </p>
-      </div>
-      <NuxtLink
-        to="/"
-        class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
-          bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
-          hover:bg-slate-50"
-      >
-        Account
-      </NuxtLink>
-    </div>
+  <div>
+    <TabHeader title="Your applications" subtitle="Apps you can access with your IETF account." />
 
     <div
       v-if="usingSample"
@@ -85,7 +70,7 @@ onMounted(load)
         >
           {{ section.name || 'Other' }}
         </h2>
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2">
           <a
             v-for="app in section.apps"
             :key="app.pk"

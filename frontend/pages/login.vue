@@ -15,7 +15,7 @@ const isProviderFlow = computed(() => Boolean(route.query.client_id))
 
 function onComplete(user) {
   auth.setUser(user)
-  router.push('/')
+  router.push('/account/applications')
 }
 
 // Coming back from a source (Google/GitHub/Apple) login: authentik has set its
@@ -30,7 +30,7 @@ onMounted(async () => {
   // flows are the exception — they must proceed so authentik can issue the app's
   // code — so only bounce standalone visits.
   if (auth.isAuthenticated && !isProviderFlow.value) {
-    router.replace('/')
+    router.replace('/account/applications')
     return
   }
   if (!finalizing.value) {

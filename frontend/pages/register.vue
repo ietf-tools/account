@@ -8,7 +8,7 @@ function onComplete(user) {
   // sign in.
   if (user) {
     auth.setUser(user)
-    router.push('/')
+    router.push('/account/applications')
   } else {
     router.push('/login')
   }
