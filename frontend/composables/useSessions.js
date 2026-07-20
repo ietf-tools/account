@@ -86,11 +86,12 @@ export function useSessions() {
     usingSample.value = false
     try {
       // Scope to the current user: for a superuser this endpoint returns EVERY
-      // user's sessions, so the `user` filter (their pk) is what keeps the list
-      // to just their own — the same thing authentik's own settings UI does.
+      // user's sessions, so we filter to just their own. The supported filter is
+      // `user__username` (a bare `user`/pk param is ignored), matching the call
+      // authentik's own admin UI makes.
       const params = { page_size: 100 }
-      if (auth.user?.pk) {
-        params.user = auth.user.pk
+      if (auth.user?.username) {
+        params.user__username = auth.user.username
       }
       const body = await ak('/core/authenticated_sessions/', { params })
       sessions.value = order((body.results ?? []).map(normalize))

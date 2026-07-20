@@ -122,7 +122,7 @@ onMounted(load)
           :disabled="revoking === session.uuid"
           @click="onRevoke(session)"
         >
-          {{ revoking === session.uuid ? 'Signing out…' : 'Sign out' }}
+          {{ revoking === session.uuid ? 'Terminating…' : 'Terminate' }}
         </button>
       </li>
     </ul>
