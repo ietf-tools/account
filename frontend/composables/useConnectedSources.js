@@ -79,11 +79,20 @@ export function useConnectedSources() {
     // Real slugs learned from the sources list (best-effort), keyed by brand.
     let realSlugByBrand = new Map()
     try {
+      // Scope to the current user with `user=<pk>` — the filter authentik's own
+      // admin UI uses on this endpoint (/sources/user_connections/all/, which
+      // returns every source-connection type). We also guard client-side by pk in
+      // case the serializer includes it, but trust the server filter when it
+      // doesn't (so we never hide everything).
       const params = { page_size: 100 }
-      if (auth.user?.username) {
-        params.user__username = auth.user.username
+      if (auth.user?.pk) {
+        params.user = auth.user.pk
       }
-      const connsBody = await ak('/sources/user_connections/oauth/', { params })
+      const connsBody = await ak('/sources/user_connections/all/', { params })
+      const myConnections = (connsBody.results ?? []).filter(
+        (conn) =>
+          conn.user == null || auth.user?.pk == null || String(conn.user) === String(auth.user.pk)
+      )
       // Best-effort: resolve source metadata / real slugs. A non-privileged user
       // may not be able to read this; if so we fall back to the default slugs.
       const sourcesBody = await ak('/sources/oauth/', { params: { page_size: 100 } }).catch(
@@ -100,8 +109,10 @@ export function useConnectedSources() {
         }
       }
 
-      connected.value = (connsBody.results ?? []).map((conn) => {
-        const source = sourceByPk.get(conn.source) ?? conn.source_obj ?? {}
+      connected.value = myConnections.map((conn) => {
+        // The /all/ endpoint embeds the expanded source as `source_obj`; prefer
+        // it, falling back to the oauth sources map keyed by pk.
+        const source = conn.source_obj ?? sourceByPk.get(conn.source) ?? {}
         return {
           connectionPk: conn.pk,
           sourcePk: conn.source,

@@ -30,7 +30,8 @@ const authentikApiUrl = process.env.NUXT_PUBLIC_AUTHENTIK_API_URL ?? '/api/v3'
 const flows = {
   authentication: process.env.AUTHENTIK_FLOW_AUTHENTICATION ?? 'default-authentication-flow',
   enrollment: process.env.AUTHENTIK_FLOW_ENROLLMENT ?? 'default-enrollment-flow',
-  recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'default-recovery-flow'
+  recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'default-recovery-flow',
+  userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'default-user-settings-flow'
 }
 
 // Dev only: base URL of the remote authentik to proxy /api/v3 to. In production
