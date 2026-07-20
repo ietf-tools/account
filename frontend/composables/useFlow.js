@@ -68,14 +68,19 @@ export function useFlow(kind, options = {}) {
   }
 
   async function apply(next) {
-    challenge.value = withSources(next)
-    complete.value = isFlowComplete(next)
-    if (complete.value) {
+    const done = isFlowComplete(next)
+    if (done) {
       redirectTo.value = next.to ?? null
-      // In resume (provider) mode the caller follows redirectTo, so resolving the
-      // local user is best-effort — don't let it fail the flow.
+      // Resolve the signed-in user BEFORE flipping `complete`. `resolveUser` is an
+      // async /core/users/me/ fetch; if we set `complete` first, the consumer's
+      // completion watcher fires on the next microtask — before this resolves — and
+      // sees `user` still null, treating a real login as a failure. In resume
+      // (provider) mode the caller just follows redirectTo, so this stays
+      // best-effort — don't let it fail the flow.
       user.value = await resolveUser().catch(() => null)
     }
+    challenge.value = withSources(next)
+    complete.value = done
     return { challenge: challenge.value, complete: complete.value, user: user.value }
   }
 

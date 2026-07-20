@@ -48,7 +48,14 @@ onMounted(load)
           Apps you can access with your IETF account.
         </p>
       </div>
-      <NuxtLink to="/" class="link shrink-0 text-sm">Account</NuxtLink>
+      <NuxtLink
+        to="/"
+        class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+          bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
+          hover:bg-slate-50"
+      >
+        Account
+      </NuxtLink>
     </div>
 
     <div
@@ -85,20 +92,21 @@ onMounted(load)
             :href="app.launchUrl"
             :target="app.openInNewTab ? '_blank' : '_self'"
             rel="noopener"
-            class="group flex items-start gap-3 rounded-xl border border-slate-200 p-4 transition
-              hover:border-sky-300 hover:bg-slate-50 hover:shadow-sm"
+            class="group flex items-start gap-3 rounded-xl border border-slate-200 bg-gradient-to-b
+              from-white to-slate-50 p-4 shadow-sm ring-1 ring-inset ring-white transition
+              hover:border-sky-300 hover:to-white hover:shadow-md"
           >
             <img
               v-if="app.icon"
               :src="app.icon"
               alt=""
-              class="h-10 w-10 shrink-0 rounded-lg object-contain"
+              class="h-14 w-14 shrink-0 rounded-lg object-contain"
             />
             <span
               v-else
               aria-hidden="true"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100
-                text-lg font-semibold text-sky-700"
+              class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-sky-100
+                text-2xl font-semibold text-sky-700"
             >
               {{ app.name.charAt(0).toUpperCase() }}
             </span>
@@ -106,11 +114,8 @@ onMounted(load)
               <span class="block truncate font-medium text-slate-900 group-hover:text-sky-700">
                 {{ app.name }}
               </span>
-              <span v-if="app.description" class="mt-0.5 block text-sm text-slate-500 line-clamp-2">
+              <span v-if="app.description" class="mt-0.5 block text-xs text-slate-500 line-clamp-2">
                 {{ app.description }}
-              </span>
-              <span v-else-if="app.publisher" class="mt-0.5 block text-sm text-slate-400">
-                {{ app.publisher }}
               </span>
             </span>
           </a>

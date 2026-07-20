@@ -24,6 +24,15 @@ function onComplete(user) {
 // flow had completed. (This only works in production, where the app and authentik
 // share account.ietf.org; it cannot complete against a remote authentik in dev.)
 onMounted(async () => {
+  // Already signed in (e.g. landing back on /login after a completed login, or a
+  // reload): don't present the auth flow again. Re-running it against an
+  // authenticated authentik session returns ak-stage-flow-error. Provider (OAuth)
+  // flows are the exception — they must proceed so authentik can issue the app's
+  // code — so only bounce standalone visits.
+  if (auth.isAuthenticated && !isProviderFlow.value) {
+    router.replace('/')
+    return
+  }
   if (!finalizing.value) {
     return
   }
