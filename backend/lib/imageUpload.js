@@ -44,8 +44,21 @@ export async function requireUser(request, reply) {
     throw err
   }
   if (!user) {
+    // Diagnostic: distinguish "the browser never sent authentik's session cookie
+    // to us" (a cookie-path / reverse-proxy problem) from "the cookie reached us
+    // but authentik resolved it to the anonymous user" (an expired/invalid
+    // session). Logged at warn so it's visible without debug logging.
+    const cookie = request.headers.cookie || ''
+    request.log.warn(
+      {
+        hasCookie: Boolean(cookie),
+        hasAuthentikSession: cookie.includes('authentik_session')
+      },
+      'avatar/portrait: no authenticated authentik session resolved'
+    )
     reply.unauthorized('You must be signed in to change your picture')
     return null
   }
+  request.log.info({ pk: user.pk, username: user.username }, 'avatar/portrait: acting user resolved')
   return user
 }

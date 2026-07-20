@@ -61,7 +61,9 @@ export const config = {
     accessKeyId: process.env.AVATAR_S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.AVATAR_S3_SECRET_ACCESS_KEY ?? '',
     publicUrl: (process.env.AVATAR_S3_PUBLIC_URL ?? '').replace(/\/+$/, ''),
-    keyPrefix: (process.env.AVATAR_S3_KEY_PREFIX ?? 'avatars/').replace(/^\/+/, ''),
+    // Object key prefix. Defaults to none, so files sit at the bucket root
+    // (the bucket is already served from a dedicated host, e.g. avatars.…).
+    keyPrefix: (process.env.AVATAR_S3_KEY_PREFIX ?? '').replace(/^\/+/, ''),
     // MinIO and most non-AWS S3s need path-style addressing (bucket in the path,
     // not the host). Defaults on when a custom endpoint is set.
     forcePathStyle: process.env.AVATAR_S3_FORCE_PATH_STYLE

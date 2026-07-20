@@ -41,8 +41,21 @@ async function adminFetch(path, options = {}) {
     }
   })
   const text = await response.text()
-  const body = text ? JSON.parse(text) : null
+  let body = null
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    // Non-JSON (e.g. an HTML error page from a proxy in front of authentik).
+    body = null
+  }
   if (!response.ok) {
+    // Surface which admin call was denied — e.g. a 403 "You do not have
+    // permission to perform this action." means the service account behind
+    // AUTHENTIK_API_TOKEN lacks the needed user view/change permission.
+    console.warn(
+      `authentik admin API ${options.method ?? 'GET'} ${path} -> HTTP ${response.status}` +
+        `${body?.detail ? `: ${body.detail}` : ''}`
+    )
     throw new AuthentikError(
       body?.detail || `authentik admin API error (HTTP ${response.status})`,
       response.status,
