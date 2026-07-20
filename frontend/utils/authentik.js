@@ -17,6 +17,13 @@ export function flowsCancelUrl(authentikApiUrl) {
   return `${base}/flows/-/cancel/`
 }
 
+// authentik's identification challenge hands us browser-facing flow URLs
+// (passwordless_url, enroll_url, recovery_url) shaped like /if/flow/<slug>/…. To
+// drive one ourselves via the executor we only need its slug.
+export function flowSlugFromUrl(url) {
+  return url?.match(/\/if\/flow\/([^/?#]+)/)?.[1] ?? null
+}
+
 // authentik resolves an unauthenticated session to this pseudo-user.
 export function isAnonymous(user) {
   return !user?.pk || user.username === 'AnonymousUser'

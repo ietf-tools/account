@@ -20,7 +20,7 @@
 export function useFlow(kind, options = {}) {
   const ak = useAuthentik()
   const runtime = useRuntimeConfig()
-  const slug = runtime.public.flows[kind]
+  const defaultSlug = runtime.public.flows[kind]
 
   const resume = Boolean(options.resume)
   const query = options.query ?? ''
@@ -36,9 +36,14 @@ export function useFlow(kind, options = {}) {
   const loading = ref(false)
   const error = ref(null)
 
-  // The executor URL. `query` mirrors the flow page's querystring; empty is what
-  // a fresh, headless start uses.
-  const executorUrl = `/flows/executor/${slug}/?query=${encodeURIComponent(query)}`
+  // The flow currently being driven. Normally `kind`'s slug, but a passwordless
+  // (passkey) login switches this to authentik's passwordless flow mid-session
+  // (see beginFlow). `submit` always targets whichever flow is active.
+  const activeSlug = ref(defaultSlug)
+
+  // The executor URL for a given flow slug. `query` mirrors the flow page's
+  // querystring; empty is what a fresh, headless start uses.
+  const executorUrl = (slug) => `/flows/executor/${slug}/?query=${encodeURIComponent(query)}`
   const cancelUrl = flowsCancelUrl(runtime.public.authentikApiUrl)
 
   // Discard any existing server-side flow plan so the next executor GET re-plans
@@ -93,13 +98,29 @@ export function useFlow(kind, options = {}) {
   const begin = () =>
     run(
       (async () => {
+        activeSlug.value = defaultSlug
         if (!resume) {
           await reset()
         }
-        return ak(executorUrl, { method: 'GET' })
+        return ak(executorUrl(activeSlug.value), { method: 'GET' })
       })()
     )
-  const submit = (payload) => run(ak(executorUrl, { method: 'POST', body: payload ?? {} }))
 
-  return { challenge, complete, user, redirectTo, loading, error, begin, submit }
+  // Start a *different* flow by slug in the current session — used for authentik's
+  // passwordless (passkey) login, whose slug the identification challenge hands us
+  // via passwordless_url. Always a fresh standalone start (never a resume: there's
+  // no OAuth plan to preserve), so discard any in-progress plan first.
+  const beginFlow = (altSlug) =>
+    run(
+      (async () => {
+        activeSlug.value = altSlug
+        await reset()
+        return ak(executorUrl(altSlug), { method: 'GET' })
+      })()
+    )
+
+  const submit = (payload) =>
+    run(ak(executorUrl(activeSlug.value), { method: 'POST', body: payload ?? {} }))
+
+  return { challenge, complete, user, redirectTo, loading, error, begin, beginFlow, submit }
 }

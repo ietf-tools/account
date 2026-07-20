@@ -29,10 +29,11 @@ async function onLogout() {
     </dl>
 
     <div class="mt-6 space-y-3">
+      <NuxtLink to="/applications" class="btn-primary">View your applications</NuxtLink>
       <!-- Same-origin link out to authentik's admin UI at the domain root; a plain
            anchor (not NuxtLink) so it leaves the SPA rather than being resolved
            under the /app/ base. Only superusers can reach /if/admin/. -->
-      <a v-if="auth.user?.isSuperuser" href="/if/admin/" class="btn-primary">Administration</a>
+      <a v-if="auth.user?.isSuperuser" href="/if/admin/" class="btn-social w-full">Administration</a>
       <button class="btn-social w-full" @click="onLogout">Sign out</button>
     </div>
   </div>

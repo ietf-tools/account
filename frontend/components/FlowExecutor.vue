@@ -1,4 +1,5 @@
 <script setup>
+import { startAuthentication } from '@simplewebauthn/browser'
 // Renders an authentik flow as a sequence of challenges and submits each stage
 // straight to authentik's Flow Executor (see useFlow). This is where you fully
 // own the login UI: every stage below is just markup you control, driven by the
@@ -17,7 +18,7 @@ const emit = defineEmits(['complete'])
 // executor, exactly as authentik's stock flow UI does. Empty for a normal login.
 const query = import.meta.client ? window.location.search.replace(/^\?/, '') : ''
 
-const { challenge, complete, user, redirectTo, loading, error, begin, submit } = useFlow(props.kind, {
+const { challenge, complete, user, redirectTo, loading, error, begin, beginFlow, submit } = useFlow(props.kind, {
   resume: props.resume,
   query
 })
@@ -25,6 +26,62 @@ const { challenge, complete, user, redirectTo, loading, error, begin, submit } =
 // Local form model, reset whenever the stage changes.
 const model = reactive({})
 const component = computed(() => challenge.value?.component)
+
+// --- Authenticator validation (MFA) --------------------------------------
+// authentik's ak-stage-authenticator-validate offers one `device_challenge` per
+// enrolled device, each keyed by `device_class`. Code devices (TOTP/static/SMS)
+// are satisfied by submitting `{ code }`; a passkey/security key (`webauthn`) is
+// satisfied by running the browser WebAuthn API over the challenge's options and
+// submitting the resulting assertion as `{ webauthn }`. `selectedDevice` is the
+// one the user is proving — auto-picked when there's only one, otherwise chosen
+// from a method list.
+const deviceChallenges = computed(() => challenge.value?.device_challenges ?? [])
+const selectedDevice = ref(null)
+
+const DEVICE_LABELS = {
+  webauthn: 'Passkey or security key',
+  totp: 'Authenticator app code',
+  static: 'Recovery code',
+  sms: 'Code sent by SMS',
+  email: 'Code sent by email',
+  duo: 'Duo push'
+}
+function deviceLabel(deviceClass) {
+  return DEVICE_LABELS[deviceClass] ?? 'Authenticator code'
+}
+
+function selectDevice(device) {
+  selectedDevice.value = device
+  focusFirstField()
+}
+
+const submitLabel = computed(() => {
+  if (loading.value) {
+    return 'Please wait…'
+  }
+  if (component.value === 'ak-stage-authenticator-validate' && selectedDevice.value?.device_class === 'webauthn') {
+    return 'Use passkey'
+  }
+  return 'Continue'
+})
+
+// --- Passwordless (passkey-first) login ----------------------------------
+// When a passwordless flow is configured, authentik's identification challenge
+// carries a `passwordless_url` (/if/flow/<slug>/…). We drive that flow's slug
+// through the executor ourselves so it renders in this same UI (it opens on a
+// webauthn ak-stage-authenticator-validate, handled above). `passwordlessMode`
+// tracks that we branched off, so we can offer a way back to email sign-in.
+const passwordlessSlug = computed(() => flowSlugFromUrl(challenge.value?.passwordless_url))
+const passwordlessMode = ref(false)
+
+function beginPasswordless() {
+  const slug = passwordlessSlug.value
+  if (!slug) {
+    return
+  }
+  passwordlessMode.value = true
+  return beginFlow(slug)
+}
 
 // The active stage's <form>, used to focus its first field on every stage change
 // (the HTML `autofocus` attribute only fires on initial parse, not on Vue stage
@@ -42,6 +99,7 @@ watch(challenge, (c) => {
     delete model[key]
   }
   uidError.value = ''
+  selectedDevice.value = null
   if (!c) {
     return
   }
@@ -50,6 +108,15 @@ watch(challenge, (c) => {
     for (const field of c.fields ?? []) {
       model[field.field_key] = field.initial_value ?? (field.type === 'checkbox' ? false : '')
     }
+  }
+  // MFA: with a single enrolled device there's nothing to choose — go straight
+  // to proving it (passkey button or code field).
+  if (c.component === 'ak-stage-authenticator-validate' && (c.device_challenges ?? []).length === 1) {
+    selectedDevice.value = c.device_challenges[0]
+  }
+  // Back on the identification stage means we're no longer in a passwordless sub-flow.
+  if (c.component === 'ak-stage-identification') {
+    passwordlessMode.value = false
   }
   focusFirstField()
 })
@@ -100,6 +167,13 @@ async function onSubmit() {
     return
   }
 
+  // Authenticator validation branches on device class (passkey vs code), so it
+  // builds and submits its own payload.
+  if (component.value === 'ak-stage-authenticator-validate') {
+    await submitAuthenticator()
+    return
+  }
+
   const payload = {}
   switch (component.value) {
     case 'ak-stage-identification':
@@ -111,9 +185,6 @@ async function onSubmit() {
     case 'ak-stage-password':
       payload.password = model.password
       break
-    case 'ak-stage-authenticator-validate':
-      payload.code = model.code
-      break
     case 'ak-stage-prompt':
       Object.assign(payload, model)
       break
@@ -121,6 +192,38 @@ async function onSubmit() {
       Object.assign(payload, model)
   }
   await submit(payload).catch(() => {})
+}
+
+// Prove the selected MFA device. For a passkey we invoke the WebAuthn API with
+// the challenge's options (the button click is the required user gesture) and
+// submit the assertion; for code devices we submit the typed code. When the
+// account has more than one device we also echo `selected_challenge` so authentik
+// validates against the class the user picked. NOTE: a passkey is bound to
+// authentik's RP ID, so navigator.credentials.get() only succeeds on the deployed
+// same-origin host — it cannot complete over http://localhost in dev.
+async function submitAuthenticator() {
+  const device = selectedDevice.value
+  if (!device) {
+    return
+  }
+  // Disambiguate only when needed — keeps the single-device payload minimal.
+  const selection = deviceChallenges.value.length > 1 ? { selected_challenge: device } : {}
+
+  if (device.device_class === 'webauthn') {
+    error.value = null
+    let assertion
+    try {
+      assertion = await startAuthentication({ optionsJSON: device.challenge })
+    } catch {
+      // User dismissed the prompt or no matching credential was available.
+      error.value = 'Passkey verification was cancelled or did not complete. Please try again.'
+      return
+    }
+    await submit({ ...selection, webauthn: assertion }).catch(() => {})
+    return
+  }
+
+  await submit({ ...selection, code: model.code }).catch(() => {})
 }
 
 // Map authentik prompt field types onto native input types.
@@ -218,13 +321,59 @@ function continueWithSource(source) {
         </div>
       </template>
 
-      <!-- MFA / authenticator code -->
+      <!-- MFA / authenticator validation. authentik offers one challenge per
+           enrolled device; pick a method (when there's more than one), then prove
+           it with a passkey or a code. -->
       <template v-else-if="component === 'ak-stage-authenticator-validate'">
-        <div>
-          <label class="field-label">Authentication code</label>
-          <input v-model="model.code" inputmode="numeric" class="field-input" autocomplete="one-time-code" autofocus />
-          <p v-if="errorFor('code')" class="mt-1 text-sm text-red-600">{{ errorFor('code') }}</p>
+        <!-- Method chooser (multiple devices enrolled) -->
+        <div v-if="!selectedDevice" class="space-y-2">
+          <p class="text-sm text-slate-600">Choose how to verify your identity:</p>
+          <button
+            v-for="device in deviceChallenges"
+            :key="device.device_uid || device.device_class"
+            type="button"
+            class="btn-social w-full justify-center"
+            :disabled="loading"
+            @click="selectDevice(device)"
+          >
+            {{ deviceLabel(device.device_class) }}
+          </button>
         </div>
+
+        <!-- Passkey / security key: no field, the button below runs WebAuthn -->
+        <template v-else-if="selectedDevice.device_class === 'webauthn'">
+          <p class="text-sm text-slate-600">
+            Use your passkey or security key to finish signing in.
+          </p>
+        </template>
+
+        <!-- Code-based device (TOTP / static / SMS / email) -->
+        <template v-else>
+          <div>
+            <label class="field-label">{{ deviceLabel(selectedDevice.device_class) }}</label>
+            <input v-model="model.code" inputmode="numeric" class="field-input" autocomplete="one-time-code" autofocus />
+            <p v-if="errorFor('code')" class="mt-1 text-sm text-red-600">{{ errorFor('code') }}</p>
+          </div>
+        </template>
+
+        <button
+          v-if="selectedDevice && deviceChallenges.length > 1"
+          type="button"
+          class="link text-sm"
+          :disabled="loading"
+          @click="selectedDevice = null"
+        >
+          Use a different method
+        </button>
+        <button
+          v-if="passwordlessMode"
+          type="button"
+          class="link block text-sm"
+          :disabled="loading"
+          @click="begin"
+        >
+          Back to email sign-in
+        </button>
       </template>
 
       <!-- Dynamic prompt stage (enrollment, extra fields, password set, ...) -->
@@ -293,10 +442,29 @@ function continueWithSource(source) {
         <pre class="overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{{ challenge }}</pre>
       </template>
 
-      <button v-if="component !== 'ak-stage-email'" type="submit" class="btn-primary" :disabled="loading">
-        {{ loading ? 'Please wait…' : 'Continue' }}
+      <button
+        v-if="component !== 'ak-stage-email' && !(component === 'ak-stage-authenticator-validate' && !selectedDevice)"
+        type="submit"
+        class="btn-primary"
+        :disabled="loading"
+      >
+        {{ submitLabel }}
       </button>
     </form>
+
+    <!-- Passwordless: sign in with a passkey. authentik exposes passwordless_url on
+         the identification challenge when a passwordless flow is configured; we
+         drive that flow's slug through the executor so it stays in this UI. -->
+    <div v-if="component === 'ak-stage-identification' && passwordlessSlug && !resume" class="mt-4">
+      <button
+        type="button"
+        class="btn-social w-full justify-center"
+        :disabled="loading"
+        @click="beginPasswordless"
+      >
+        <span>Sign in with a passkey</span>
+      </button>
+    </div>
 
     <!-- Social / federated logins (authentik sources on the identification stage) -->
     <div
