@@ -10,6 +10,8 @@ import fastifyStatic from '@fastify/static'
 
 import { config } from './lib/config.js'
 import migrationRoutes from './routes/migration.js'
+import avatarRoutes from './routes/avatar.js'
+import portraitRoutes from './routes/portrait.js'
 import healthRoutes from './routes/health.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -50,6 +52,8 @@ await app.register(session, {
 // here: the SPA talks to authentik directly. This backend is migration-only.
 await app.register(healthRoutes, { prefix: config.apiPrefix })
 await app.register(migrationRoutes, { prefix: `${config.apiPrefix}/migration` })
+await app.register(avatarRoutes, { prefix: `${config.apiPrefix}/avatar` })
+await app.register(portraitRoutes, { prefix: `${config.apiPrefix}/portrait` })
 
 // In production the built SPA (nuxt generate -> .output/public) is served by
 // this same server, so the browser only ever talks to one origin.

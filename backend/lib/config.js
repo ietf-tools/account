@@ -45,5 +45,27 @@ export const config = {
   legacy: {
     apiUrl: process.env.LEGACY_API_URL ?? '',
     apiToken: process.env.LEGACY_API_TOKEN ?? ''
+  },
+
+  // S3-compatible object storage for uploaded avatars. Optional: only the avatar
+  // upload feature needs it (it throws a clear error if a user uploads while
+  // unconfigured). Storing the image as an object and putting its URL — not the
+  // bytes — in authentik keeps the OIDC `picture` claim small and cacheable for
+  // other apps. `endpoint` is for S3-compatibles like MinIO (leave blank for AWS
+  // S3). `publicUrl` is the base other apps fetch the image from (the bucket's
+  // public URL or a CDN in front of it); we append the object key to it.
+  storage: {
+    endpoint: process.env.AVATAR_S3_ENDPOINT ?? '',
+    region: process.env.AVATAR_S3_REGION ?? 'us-east-1',
+    bucket: process.env.AVATAR_S3_BUCKET ?? '',
+    accessKeyId: process.env.AVATAR_S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.AVATAR_S3_SECRET_ACCESS_KEY ?? '',
+    publicUrl: (process.env.AVATAR_S3_PUBLIC_URL ?? '').replace(/\/+$/, ''),
+    keyPrefix: (process.env.AVATAR_S3_KEY_PREFIX ?? 'avatars/').replace(/^\/+/, ''),
+    // MinIO and most non-AWS S3s need path-style addressing (bucket in the path,
+    // not the host). Defaults on when a custom endpoint is set.
+    forcePathStyle: process.env.AVATAR_S3_FORCE_PATH_STYLE
+      ? process.env.AVATAR_S3_FORCE_PATH_STYLE === 'true'
+      : Boolean(process.env.AVATAR_S3_ENDPOINT)
   }
 }

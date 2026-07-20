@@ -83,6 +83,70 @@ export async function setUserPassword(userPk, password) {
   })
 }
 
+// Full admin view of a user, including `attributes` (the self serializer at
+// /core/users/me/ omits them, so a PATCH that wants to preserve other attributes
+// must read them from here first).
+export async function getUser(userPk) {
+  return adminFetch(`/core/users/${userPk}/`)
+}
+
+// Partial update of a user. Note authentik REPLACES the `attributes` object
+// wholesale on PATCH (it's a JSON field, not deep-merged) — callers that touch
+// attributes must pass the full merged object.
+export async function patchUser(userPk, body) {
+  return adminFetch(`/core/users/${userPk}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  })
+}
+
+// ── Session identity (the browser's own authentik cookie, NOT the admin token) ──
+//
+// Resolve who is making a request by replaying the caller's authentik session
+// cookie to /core/users/me/ — exactly the identity authentik itself would see.
+// This is how avatar upload learns the acting user's pk securely: we never trust
+// a pk sent from the browser, only the one authentik derives from its cookie.
+// Returns the authentik user object, or null if the cookie resolves to an
+// anonymous / absent session.
+export async function resolveSessionUser(cookieHeader) {
+  if (!cookieHeader) {
+    return null
+  }
+  const response = await doFetch(`${API}/core/users/me/`, {
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookieHeader
+    },
+    // An unrecognised/expired session can bounce to authentik's HTML login flow;
+    // don't follow that into an HTML page — treat a redirect as "no session".
+    redirect: 'manual'
+  })
+  if (!response.ok) {
+    return null
+  }
+  // authentik's API returns JSON. Anything else (an HTML login/error page, e.g.
+  // when the forwarded cookie isn't a valid session) means we couldn't resolve a
+  // user — return null instead of throwing on JSON.parse. Warn so a genuine
+  // misconfiguration (wrong AUTHENTIK_URL, non-JSON 200) is visible in the logs.
+  const text = await response.text()
+  let body = null
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    console.warn(
+      `resolveSessionUser: expected JSON from ${API}/core/users/me/ but got ` +
+        `${response.headers.get('content-type') || 'unknown'} (HTTP ${response.status}). ` +
+        'Treating as no session.'
+    )
+    return null
+  }
+  const user = body?.user ?? body
+  if (!user?.pk || user.username === 'AnonymousUser') {
+    return null
+  }
+  return user
+}
+
 // ── Errors ───────────────────────────────────────────────────────────────────
 
 export class AuthentikError extends Error {
