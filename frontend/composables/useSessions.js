@@ -73,6 +73,7 @@ const SAMPLE_SESSIONS = order([
 
 export function useSessions() {
   const ak = useAuthentik()
+  const auth = useAuthStore()
 
   const sessions = ref([])
   const loading = ref(false)
@@ -84,7 +85,14 @@ export function useSessions() {
     error.value = null
     usingSample.value = false
     try {
-      const body = await ak('/core/authenticated_sessions/', { params: { page_size: 100 } })
+      // Scope to the current user: for a superuser this endpoint returns EVERY
+      // user's sessions, so the `user` filter (their pk) is what keeps the list
+      // to just their own — the same thing authentik's own settings UI does.
+      const params = { page_size: 100 }
+      if (auth.user?.pk) {
+        params.user = auth.user.pk
+      }
+      const body = await ak('/core/authenticated_sessions/', { params })
       sessions.value = order((body.results ?? []).map(normalize))
     } catch (e) {
       if (import.meta.dev) {

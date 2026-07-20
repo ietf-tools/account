@@ -42,7 +42,13 @@ export function toSessionUser(user) {
     // authentik grants admin-interface access to superusers; /core/users/me/
     // reports it as is_superuser on the self serializer.
     isSuperuser: Boolean(user.is_superuser),
-    groups: user.groups_obj?.map((g) => g.name) ?? []
+    // The admin UserSerializer expands groups under `groups_obj` (with `groups`
+    // being bare UUIDs); the self serializer (/core/users/me/, what we actually
+    // use) puts the expanded objects on `groups` and has no `groups_obj`. Accept
+    // either, and either objects ({name}) or bare strings.
+    groups: (user.groups_obj ?? user.groups ?? [])
+      .map((group) => (typeof group === 'string' ? group : group?.name))
+      .filter(Boolean)
   }
 }
 

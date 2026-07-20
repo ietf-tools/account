@@ -3,5 +3,5 @@ definePageMeta({ middleware: 'auth', layout: 'account' })
 </script>
 
 <template>
-  <TabPlaceholder title="Connected services" subtitle="Link social accounts like Apple, GitHub and Google." />
+  <TabPlaceholder title="Connected Services" subtitle="Link social accounts like Apple, GitHub and Google." />
 </template>

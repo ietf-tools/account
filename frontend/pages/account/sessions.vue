@@ -26,7 +26,14 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) {
     return ''
   }
-  return date.toLocaleString()
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short'
+  })
 }
 
 async function onRevoke(session) {
@@ -100,7 +107,9 @@ onMounted(load)
           <p class="mt-0.5 text-xs text-slate-500">
             <span v-if="session.ip">{{ session.ip }}</span>
             <span v-if="session.location"> · {{ session.location }}</span>
-            <span v-if="formatDate(session.lastUsed)"> · Last active {{ formatDate(session.lastUsed) }}</span>
+          </p>
+          <p v-if="formatDate(session.lastUsed)" class="mt-0.5 text-xs text-slate-500">
+            Last active {{ formatDate(session.lastUsed) }}
           </p>
         </div>
 

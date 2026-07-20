@@ -31,7 +31,7 @@ const items = [
   },
   {
     to: '/account/connected',
-    label: 'Connected services',
+    label: 'Connected Services',
     icon: 'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244'
   },
   {
@@ -110,7 +110,7 @@ async function onLogout() {
             </div>
           </div>
 
-          <nav class="flex-1 space-y-1 p-3">
+          <nav class="space-y-1 p-3">
             <NuxtLink
               v-for="item in items"
               :key="item.to"
@@ -136,8 +136,23 @@ async function onLogout() {
             </NuxtLink>
           </nav>
 
-          <div class="border-t border-slate-200 p-3">
-            <button class="btn-social w-full" @click="onLogout">Sign out</button>
+          <div class="space-y-2 border-t border-slate-200 p-3">
+            <!-- Superusers only. Plain anchor (not NuxtLink) so it leaves the SPA
+                 to authentik's admin UI at the domain root rather than resolving
+                 under the /app/ base. -->
+            <a v-if="auth.user?.isSuperuser" href="/if/admin/" class="btn-social w-full">
+              Administration Area
+            </a>
+            <button class="btn-social w-full text-red-600" @click="onLogout">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                />
+              </svg>
+              Sign out
+            </button>
           </div>
         </aside>
 
