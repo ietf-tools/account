@@ -72,18 +72,27 @@ onMounted(async () => {
       </div>
       <div class="mt-4">
         <NuxtLink to="/migrate" class="btn-social w-full">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
+            />
+          </svg>
           <span>Legacy Datatracker Account</span>
         </NuxtLink>
       </div>
     </template>
-    <template #footer>
+    <template #footer="{ component }">
       <hr class="mb-6 border-t border-slate-200" />
       <div class="space-y-1">
         <p v-if="socialError" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {{ socialError }}
         </p>
         <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
-        <p><NuxtLink to="/recover" class="link">Forgot your password?</NuxtLink></p>
+        <p v-if="component === 'ak-stage-password'">
+          <NuxtLink to="/recover" class="link">Forgot your password?</NuxtLink>
+        </p>
       </div>
     </template>
   </FlowExecutor>

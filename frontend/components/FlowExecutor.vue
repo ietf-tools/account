@@ -75,6 +75,13 @@ function deviceLabel(deviceClass) {
 
 function selectDevice(device) {
   selectedDevice.value = device
+  // A passkey/security key has no field to fill — go straight to the WebAuthn
+  // ceremony (this click is the user gesture the browser requires) instead of
+  // making the user press a second "Use passkey" button.
+  if (device.device_class === 'webauthn') {
+    submitAuthenticator()
+    return
+  }
   focusFirstField()
 }
 
@@ -139,9 +146,15 @@ watch(challenge, (c) => {
     }
   }
   // MFA: with a single enrolled device there's nothing to choose — go straight
-  // to proving it (passkey button or code field).
+  // to proving it (passkey ceremony or code field).
   if (c.component === 'ak-stage-authenticator-validate' && (c.device_challenges ?? []).length === 1) {
     selectedDevice.value = c.device_challenges[0]
+    // For a passkey, start WebAuthn immediately (authentik's own UI does this):
+    // the click that began this flow is still a valid user gesture. Best-effort —
+    // if the browser rejects it, the "Use passkey" button below is the retry.
+    if (selectedDevice.value.device_class === 'webauthn') {
+      nextTick(() => submitAuthenticator())
+    }
   }
   // TOTP enrollment: render the otpauth config_url as a scannable QR code.
   totpQr.value = ''
@@ -360,7 +373,12 @@ function continueWithSource(source) {
     </div>
 
     <!-- Active stage -->
-    <form v-else ref="formEl" @submit.prevent="onSubmit" class="space-y-4">
+    <form
+      v-else
+      ref="formEl"
+      @submit.prevent="onSubmit"
+      :class="component === 'ak-stage-identification' ? 'space-y-2' : 'space-y-4'"
+    >
       <!-- Identification: username/email (+ optional inline password) -->
       <template v-if="component === 'ak-stage-identification'">
         <div>
@@ -584,6 +602,13 @@ function continueWithSource(source) {
         :disabled="loading"
         @click="beginPasswordless"
       >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33"
+          />
+        </svg>
         <span>Sign in with a passkey</span>
       </button>
     </div>
@@ -625,7 +650,7 @@ function continueWithSource(source) {
     </div>
 
     <div class="mt-6 text-center text-sm text-slate-500">
-      <slot name="footer" />
+      <slot name="footer" :component="component" />
     </div>
   </div>
 </template>
