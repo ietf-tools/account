@@ -74,15 +74,18 @@ export function useTokens() {
     }
   }
 
-  // Create an API token. authentik assigns it to the requesting user. When
-  // `expiring` is set, `expires` is an ISO datetime string.
-  async function create({ identifier, description, expiring, expires }) {
+  // Create a token. authentik assigns it to the requesting user. `intent` is
+  // 'app_password' (a credential to exchange for an OAuth2 access token against
+  // apps like Datatracker) or 'api' (authentik's own API). When `expiring` is
+  // set, `expires` is an ISO datetime string.
+  async function create({ identifier, description, expiring, expires, intent = 'app_password' }) {
     const willExpire = Boolean(expiring)
+    const tokenIntent = USER_INTENTS.has(intent) ? intent : 'app_password'
     if (usingSample.value) {
       tokens.value = [
         normalize({
           identifier,
-          intent: 'api',
+          intent: tokenIntent,
           description,
           expiring: willExpire,
           expires: willExpire ? expires : null
@@ -91,7 +94,12 @@ export function useTokens() {
       ]
       return
     }
-    const body = { identifier, description: description ?? '', intent: 'api', expiring: willExpire }
+    const body = {
+      identifier,
+      description: description ?? '',
+      intent: tokenIntent,
+      expiring: willExpire
+    }
     if (willExpire && expires) {
       body.expires = expires
     }

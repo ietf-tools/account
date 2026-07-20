@@ -5,6 +5,8 @@
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+// App version, injected at build time from package.json (see nuxt.config.ts).
+const appVersion = useRuntimeConfig().public.appVersion
 
 // Sidebar sections, in display order. Each maps to a page under pages/account/.
 // `icon` is the `d` of a single heroicons (v2, outline) path drawn in the nav.
@@ -191,6 +193,8 @@ async function launchConfetti(event) {
               Sign out
             </button>
           </div>
+
+          <p class="mt-auto p-3 text-center text-xs text-slate-400">Version {{ appVersion }}</p>
         </aside>
 
         <main class="min-w-0 flex-1 p-6 sm:p-8">
