@@ -1,5 +1,6 @@
 <script setup>
-import { startAuthentication } from '@simplewebauthn/browser'
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
+import QRCode from 'qrcode'
 // Renders an authentik flow as a sequence of challenges and submits each stage
 // straight to authentik's Flow Executor (see useFlow). This is where you fully
 // own the login UI: every stage below is just markup you control, driven by the
@@ -10,7 +11,10 @@ const props = defineProps({
   // Set when a third-party app initiated this flow (see login.vue): resume
   // authentik's existing plan instead of restarting, and on completion follow
   // its redirect back to the app rather than emitting `complete`.
-  resume: { type: Boolean, default: false }
+  resume: { type: Boolean, default: false },
+  // Drop the card chrome (outer card, title, "continue as") so the flow can be
+  // hosted inside another panel — e.g. MFA enrollment in the account shell.
+  embedded: { type: Boolean, default: false }
 })
 const emit = defineEmits(['complete'])
 
@@ -38,6 +42,25 @@ const component = computed(() => challenge.value?.component)
 const deviceChallenges = computed(() => challenge.value?.device_challenges ?? [])
 const selectedDevice = ref(null)
 
+// --- Authenticator enrollment (MFA setup) --------------------------------
+// TOTP setup (ak-stage-authenticator-totp) hands back a `config_url`
+// (otpauth://…) carrying the shared secret; we render it as a QR to scan and pull
+// the secret out for manual entry. WebAuthn setup (ak-stage-authenticator-webauthn)
+// carries `registration` options we run through the browser's WebAuthn API. Static
+// setup (ak-stage-authenticator-static) just lists one-time recovery `codes`.
+const totpQr = ref('')
+const totpSecret = computed(() => {
+  const url = challenge.value?.config_url
+  if (!url) {
+    return ''
+  }
+  try {
+    return new URL(url).searchParams.get('secret') ?? ''
+  } catch {
+    return ''
+  }
+})
+
 const DEVICE_LABELS = {
   webauthn: 'Passkey or security key',
   totp: 'Authenticator app code',
@@ -61,6 +84,12 @@ const submitLabel = computed(() => {
   }
   if (component.value === 'ak-stage-authenticator-validate' && selectedDevice.value?.device_class === 'webauthn') {
     return 'Use passkey'
+  }
+  if (component.value === 'ak-stage-authenticator-webauthn') {
+    return 'Register device'
+  }
+  if (component.value === 'ak-stage-authenticator-static') {
+    return "I've saved my codes"
   }
   return 'Continue'
 })
@@ -113,6 +142,17 @@ watch(challenge, (c) => {
   // to proving it (passkey button or code field).
   if (c.component === 'ak-stage-authenticator-validate' && (c.device_challenges ?? []).length === 1) {
     selectedDevice.value = c.device_challenges[0]
+  }
+  // TOTP enrollment: render the otpauth config_url as a scannable QR code.
+  totpQr.value = ''
+  if (c.component === 'ak-stage-authenticator-totp' && c.config_url) {
+    QRCode.toDataURL(c.config_url, { margin: 1, width: 256 })
+      .then((url) => {
+        totpQr.value = url
+      })
+      .catch(() => {
+        totpQr.value = ''
+      })
   }
   // Back on the identification stage means we're no longer in a passwordless sub-flow.
   if (c.component === 'ak-stage-identification') {
@@ -174,6 +214,13 @@ async function onSubmit() {
     return
   }
 
+  // WebAuthn enrollment: run the browser registration ceremony (the button click
+  // is the required user gesture) and submit the attestation.
+  if (component.value === 'ak-stage-authenticator-webauthn') {
+    await submitWebauthnRegistration()
+    return
+  }
+
   const payload = {}
   switch (component.value) {
     case 'ak-stage-identification':
@@ -185,6 +232,12 @@ async function onSubmit() {
     case 'ak-stage-password':
       payload.password = model.password
       break
+    case 'ak-stage-authenticator-totp':
+      payload.code = model.code
+      break
+    case 'ak-stage-authenticator-static':
+      // No fields — an empty submit confirms the codes were saved.
+      break
     case 'ak-stage-prompt':
       Object.assign(payload, model)
       break
@@ -192,6 +245,22 @@ async function onSubmit() {
       Object.assign(payload, model)
   }
   await submit(payload).catch(() => {})
+}
+
+// Register a new passkey / security key. Invokes the WebAuthn API with the
+// stage's creation options and submits the resulting attestation. Like passkey
+// validation, this only completes on the deployed same-origin host (authentik's
+// RP ID) — not over http://localhost in dev.
+async function submitWebauthnRegistration() {
+  error.value = null
+  let attestation
+  try {
+    attestation = await startRegistration({ optionsJSON: challenge.value.registration })
+  } catch {
+    error.value = 'Passkey registration was cancelled or did not complete. Please try again.'
+    return
+  }
+  await submit({ response: attestation }).catch(() => {})
 }
 
 // Prove the selected MFA device. For a passkey we invoke the WebAuthn API with
@@ -251,15 +320,17 @@ function continueWithSource(source) {
 </script>
 
 <template>
-  <div class="card">
-    <h1 class="mb-1 text-xl font-semibold text-slate-900">
-      {{ title || challenge?.flow_info?.title || 'Authentik' }}
-    </h1>
-    <p v-if="challenge?.pending_user" class="mb-6 text-sm text-slate-500">
-      Continue as {{ challenge.pending_user }}
-      <button type="button" class="link" :disabled="loading" @click="begin">(Not you?)</button>
-    </p>
-    <div v-else class="mb-6" />
+  <div :class="{ card: !embedded }">
+    <template v-if="!embedded">
+      <h1 class="mb-1 text-xl font-semibold text-slate-900">
+        {{ title || challenge?.flow_info?.title || 'Authentik' }}
+      </h1>
+      <p v-if="challenge?.pending_user" class="mb-6 text-sm text-slate-500">
+        Continue as {{ challenge.pending_user }}
+        <button type="button" class="link" :disabled="loading" @click="begin">(Not you?)</button>
+      </p>
+      <div v-else class="mb-6" />
+    </template>
 
     <!-- Global (non-field) errors -->
     <div v-if="error" class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -424,6 +495,57 @@ function continueWithSource(source) {
           class="list-disc space-y-1 pl-5 text-sm text-slate-600"
         >
           <li v-for="perm in challenge.permissions" :key="perm.id">{{ perm.name }}</li>
+        </ul>
+      </template>
+
+      <!-- TOTP enrollment: scan the QR (or enter the secret), then confirm a code -->
+      <template v-else-if="component === 'ak-stage-authenticator-totp'">
+        <p class="text-sm text-slate-600">
+          Scan this QR code with your authenticator app, then enter the 6-digit code to confirm.
+        </p>
+        <div class="flex justify-center">
+          <img
+            v-if="totpQr"
+            :src="totpQr"
+            alt="Authenticator setup QR code"
+            class="h-44 w-44 rounded-lg border border-slate-200"
+          />
+        </div>
+        <p v-if="totpSecret" class="text-center text-xs text-slate-500">
+          Can't scan? Enter this key manually:<br />
+          <code class="break-all font-mono text-slate-700">{{ totpSecret }}</code>
+        </p>
+        <div>
+          <label class="field-label">Verification code</label>
+          <input
+            v-model="model.code"
+            inputmode="numeric"
+            class="field-input"
+            autocomplete="one-time-code"
+            autofocus
+          />
+          <p v-if="errorFor('code')" class="mt-1 text-sm text-red-600">{{ errorFor('code') }}</p>
+        </div>
+      </template>
+
+      <!-- Passkey / security key enrollment: the submit button runs WebAuthn -->
+      <template v-else-if="component === 'ak-stage-authenticator-webauthn'">
+        <p class="text-sm text-slate-600">
+          Register a passkey or security key. Select the button below and follow your browser's prompts.
+        </p>
+      </template>
+
+      <!-- Static recovery codes: show them, submitting confirms they're saved -->
+      <template v-else-if="component === 'ak-stage-authenticator-static'">
+        <p class="text-sm text-slate-600">
+          Save these recovery codes somewhere safe. Each one can be used once if you lose access to
+          your other methods.
+        </p>
+        <ul
+          class="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3
+            text-center font-mono text-sm text-slate-700"
+        >
+          <li v-for="code in challenge.codes" :key="code">{{ code }}</li>
         </ul>
       </template>
 

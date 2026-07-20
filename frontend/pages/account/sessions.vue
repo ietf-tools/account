@@ -67,9 +67,7 @@ onMounted(load)
       {{ error }}
     </div>
 
-    <div v-else-if="loading" class="py-10 text-center text-sm text-slate-500">
-      Loading your sessions…
-    </div>
+    <LoadingState v-else-if="loading" text="Loading your sessions…" />
 
     <div v-else-if="sessions.length === 0" class="py-10 text-center text-sm text-slate-500">
       No active sessions.

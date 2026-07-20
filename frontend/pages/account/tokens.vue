@@ -182,12 +182,17 @@ onMounted(load)
       {{ error }}
     </div>
 
-    <div v-else-if="loading" class="py-10 text-center text-sm text-slate-500">
-      Loading your tokens…
-    </div>
+    <LoadingState v-else-if="loading" text="Loading your tokens…" />
 
-    <div v-else-if="tokens.length === 0" class="py-10 text-center text-sm text-slate-500">
-      You don't have any tokens yet.
+    <div v-else-if="tokens.length === 0" class="flex flex-col items-center gap-3 py-12 text-center">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" class="h-20 w-20 text-slate-300" aria-hidden="true">
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"
+        />
+      </svg>
+      <p class="text-sm text-slate-500">You don't have any tokens yet.</p>
     </div>
 
     <ul v-else class="space-y-3">

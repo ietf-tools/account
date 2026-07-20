@@ -31,7 +31,12 @@ const flows = {
   authentication: process.env.AUTHENTIK_FLOW_AUTHENTICATION ?? 'default-authentication-flow',
   enrollment: process.env.AUTHENTIK_FLOW_ENROLLMENT ?? 'default-enrollment-flow',
   recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'default-recovery-flow',
-  userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'default-user-settings-flow'
+  userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'default-user-settings-flow',
+  passwordChange: process.env.AUTHENTIK_FLOW_PASSWORD_CHANGE ?? 'default-password-change',
+  // Authenticator (MFA) enrollment flows, one per device type.
+  totpSetup: process.env.AUTHENTIK_FLOW_TOTP_SETUP ?? 'default-authenticator-totp-setup',
+  webauthnSetup: process.env.AUTHENTIK_FLOW_WEBAUTHN_SETUP ?? 'default-authenticator-webauthn-setup',
+  staticSetup: process.env.AUTHENTIK_FLOW_STATIC_SETUP ?? 'default-authenticator-static-setup'
 }
 
 // Dev only: base URL of the remote authentik to proxy /api/v3 to. In production

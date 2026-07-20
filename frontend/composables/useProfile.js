@@ -96,6 +96,7 @@ export function useProfile() {
         label: 'Pronouns',
         type: 'text',
         placeholder: 'e.g. they/them',
+        sub_text: 'Optionally provide your personal pronouns.',
         initial_value: 'they/them'
       }
     ]

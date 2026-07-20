@@ -7,15 +7,6 @@ definePageMeta({ middleware: 'auth', layout: 'account' })
 const { fields, values, nonFieldErrors, loading, saving, error, saved, usingSample, load, save, errorFor } =
   useProfile()
 
-// Map authentik prompt field types onto native input types (mirrors FlowExecutor).
-function inputType(field) {
-  return (
-    { text: 'text', username: 'text', email: 'email', number: 'number', date: 'date', tel: 'tel', url: 'url' }[
-      field.type
-    ] ?? 'text'
-  )
-}
-
 onMounted(load)
 </script>
 
@@ -33,9 +24,7 @@ onMounted(load)
 
     <div v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
 
-    <div v-else-if="loading" class="py-10 text-center text-sm text-slate-500">
-      Loading your profile…
-    </div>
+    <LoadingState v-else-if="loading" text="Loading your profile…" />
 
     <form v-else @submit.prevent="save" class="space-y-4">
       <div
@@ -46,45 +35,7 @@ onMounted(load)
         {{ msg.string }}
       </div>
 
-      <div v-for="field in fields" :key="field.field_key">
-        <template v-if="field.type === 'static'">
-          <p class="text-sm text-slate-600" v-html="field.initial_value" />
-        </template>
-        <template v-else-if="field.type === 'checkbox'">
-          <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input v-model="values[field.field_key]" type="checkbox" class="rounded border-slate-300" />
-            <span v-html="field.label" />
-          </label>
-        </template>
-        <template v-else-if="field.type === 'dropdown'">
-          <label class="field-label">{{ field.label }}</label>
-          <select v-model="values[field.field_key]" class="field-input">
-            <option v-for="choice in field.choices" :key="choice" :value="choice">{{ choice }}</option>
-          </select>
-        </template>
-        <template v-else-if="field.type === 'text_area'">
-          <label class="field-label">{{ field.label }}</label>
-          <textarea
-            v-model="values[field.field_key]"
-            class="field-input"
-            rows="3"
-            :placeholder="field.placeholder"
-          />
-        </template>
-        <template v-else>
-          <label class="field-label">{{ field.label }}</label>
-          <input
-            v-model="values[field.field_key]"
-            :type="inputType(field)"
-            :placeholder="field.placeholder"
-            :required="field.required"
-            class="field-input"
-          />
-        </template>
-        <p v-if="errorFor(field.field_key)" class="mt-1 text-sm text-red-600">
-          {{ errorFor(field.field_key) }}
-        </p>
-      </div>
+      <PromptFields :fields="fields" :values="values" :error-for="errorFor" />
 
       <div class="flex justify-end">
         <button type="submit" class="btn-primary w-auto px-4" :disabled="saving">

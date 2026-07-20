@@ -54,9 +54,7 @@ onMounted(load)
       {{ error }}
     </div>
 
-    <div v-else-if="loading" class="py-10 text-center text-sm text-slate-500">
-      Loading your applications…
-    </div>
+    <LoadingState v-else-if="loading" text="Loading your applications…" />
 
     <div v-else-if="apps.length === 0" class="py-10 text-center text-sm text-slate-500">
       You don't have access to any applications yet.

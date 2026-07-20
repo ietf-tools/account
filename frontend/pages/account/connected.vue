@@ -58,9 +58,7 @@ onMounted(load)
 
     <div v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
 
-    <div v-else-if="loading" class="py-10 text-center text-sm text-slate-500">
-      Loading your connected services…
-    </div>
+    <LoadingState v-else-if="loading" text="Loading your connected services…" />
 
     <div v-else-if="connected.length === 0 && available.length === 0" class="py-10 text-center text-sm text-slate-500">
       There are no social services available to connect.
