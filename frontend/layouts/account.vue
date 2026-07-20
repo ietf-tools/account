@@ -76,6 +76,16 @@ async function onLogout() {
   await auth.logout()
   router.push('/login')
 }
+
+// Easter egg: clicking the sidebar avatar rains confetti from where you clicked.
+// canvas-confetti is loaded lazily so it stays out of the initial bundle.
+async function launchConfetti(event) {
+  const { default: confetti } = await import('canvas-confetti')
+  const origin = event
+    ? { x: event.clientX / window.innerWidth, y: event.clientY / window.innerHeight }
+    : { x: 0.5, y: 0.5 }
+  confetti({ particleCount: 120, spread: 70, startVelocity: 45, origin })
+}
 </script>
 
 <template>
@@ -100,20 +110,28 @@ async function onLogout() {
         <!-- Sidebar: identity, section nav, sign-out pinned to the bottom. -->
         <aside class="flex flex-col border-b border-slate-200 bg-slate-50 md:w-64 md:border-b-0 md:border-r">
           <div class="flex items-center gap-3 border-b border-slate-200 p-4">
-            <img
-              v-if="auth.user?.avatar"
-              :src="auth.user.avatar"
-              alt=""
-              class="h-10 w-10 shrink-0 rounded-full object-cover"
-            />
-            <span
-              v-else
-              aria-hidden="true"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100
-                text-sm font-semibold text-sky-700"
+            <button
+              type="button"
+              title="🎉"
+              class="shrink-0 rounded-full transition hover:scale-105 active:scale-95
+                focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+              @click="launchConfetti"
             >
-              {{ initial }}
-            </span>
+              <img
+                v-if="auth.user?.avatar"
+                :src="auth.user.avatar"
+                alt=""
+                class="h-10 w-10 rounded-full object-cover"
+              />
+              <span
+                v-else
+                aria-hidden="true"
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100
+                  text-sm font-semibold text-sky-700"
+              >
+                {{ initial }}
+              </span>
+            </button>
             <div class="min-w-0">
               <p class="truncate text-sm font-medium text-slate-900">
                 {{ auth.user?.name || auth.user?.username }}

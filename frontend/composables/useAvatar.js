@@ -24,6 +24,41 @@ function readAsDataUri(file) {
   })
 }
 
+// An avatar value produced by the "initials" mode: an inline SVG data-URI. Mirrors
+// the backend marker (routes/avatar.js) so we can recognise the mode on read and
+// build a matching dev preview.
+const INITIALS_PREFIX = 'data:image/svg+xml'
+
+// Client-side twin of the backend's initials SVG, used only for the dev preview
+// when there's no live authentik session. Kept visually consistent with the
+// server-generated one.
+function devInitialsDataUri(user) {
+  const name = String(user?.name ?? '').trim()
+  let initials = '?'
+  if (name) {
+    const words = name.split(/\s+/)
+    const first = words[0]?.[0] ?? ''
+    const last = words.length > 1 ? words[words.length - 1][0] : ''
+    initials = `${first}${last}`.toUpperCase() || '?'
+  } else if (user?.username) {
+    initials = user.username[0].toUpperCase()
+  }
+  let hash = 0
+  for (const char of String(user?.email || user?.username || initials)) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 360
+  }
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">` +
+    `<rect width="256" height="256" fill="hsl(${hash}, 60%, 45%)"/>` +
+    `<text x="50%" y="50%" fill="#ffffff" font-size="110" font-weight="600" ` +
+    `font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle" ` +
+    `dominant-baseline="central">${initials}</text></svg>`
+  if (typeof window !== 'undefined' && window.btoa) {
+    return `${INITIALS_PREFIX};base64,${window.btoa(unescape(encodeURIComponent(svg)))}`
+  }
+  return `${INITIALS_PREFIX};utf8,${encodeURIComponent(svg)}`
+}
+
 // Dev-only Gravatar preview. The backend computes the authoritative URL (MD5, to
 // match authentik); the Web Crypto API can't do MD5, but Gravatar also accepts a
 // SHA-256 hash and resolves it to the same person's image — good enough for a
@@ -39,7 +74,7 @@ export function useAvatar() {
   const api = useApi()
   const auth = useAuthStore()
 
-  // 'gravatar' | 'upload' — which source is currently active.
+  // 'gravatar' | 'upload' | 'initials' — which source is currently active.
   const mode = ref('gravatar')
   // The avatar authentik resolves right now (for display).
   const current = ref(null)
@@ -87,10 +122,11 @@ export function useAvatar() {
         // No live authentik session in dev — reflect what the store knows so the
         // tab is still workable (see useApplications for the same pattern).
         const custom = auth.user?.avatar || null
+        const isInitials = typeof custom === 'string' && custom.startsWith(INITIALS_PREFIX)
         current.value = custom
-        uploaded.value = custom
+        uploaded.value = isInitials ? null : custom
         gravatar.value = await devGravatar(auth.user?.email).catch(() => null)
-        mode.value = custom ? 'upload' : 'gravatar'
+        mode.value = isInitials ? 'initials' : custom ? 'upload' : 'gravatar'
         usingSample.value = true
       } else {
         error.value =
@@ -164,6 +200,34 @@ export function useAvatar() {
     }
   }
 
+  async function useInitials() {
+    saved.value = false
+    error.value = null
+    saving.value = true
+    try {
+      const res = await api('/avatar/initials', { method: 'POST' })
+      applyStatus({ mode: 'initials', current: res.avatar, uploaded: null })
+      auth.setUser({ ...auth.user, avatar: res.avatar })
+      await auth.fetchSession().catch(() => {})
+      saved.value = true
+      return true
+    } catch (e) {
+      if (import.meta.dev) {
+        const avatar = devInitialsDataUri(auth.user)
+        applyStatus({ mode: 'initials', current: avatar, uploaded: null })
+        auth.setUser({ ...auth.user, avatar })
+        usingSample.value = true
+        saved.value = true
+        return true
+      }
+      error.value =
+        e?.data?.error || e?.data?.detail || e?.message || 'We could not switch to initials.'
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
   return {
     mode,
     current,
@@ -176,6 +240,7 @@ export function useAvatar() {
     usingSample,
     load,
     upload,
-    useGravatar
+    useGravatar,
+    useInitials
   }
 }

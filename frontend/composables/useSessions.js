@@ -19,6 +19,8 @@ function normalize(session) {
     os: ua.os?.family ?? '',
     rawUserAgent: session.last_user_agent ?? '',
     location,
+    // ISO 3166-1 alpha-2 country code (e.g. "US"), used to render a flag emoji.
+    countryCode: geo?.country ?? '',
     lastUsed: session.last_used ?? null,
     expires: session.expires ?? null
   }
@@ -44,6 +46,7 @@ const SAMPLE_SESSIONS = order([
     os: 'Mac OS X',
     rawUserAgent: '',
     location: 'San Francisco, US',
+    countryCode: 'US',
     lastUsed: '2026-07-20T09:12:00Z',
     expires: '2026-08-19T09:12:00Z'
   },
@@ -55,6 +58,7 @@ const SAMPLE_SESSIONS = order([
     os: 'Windows',
     rawUserAgent: '',
     location: 'Amsterdam, NL',
+    countryCode: 'NL',
     lastUsed: '2026-07-18T21:40:00Z',
     expires: '2026-08-17T21:40:00Z'
   },

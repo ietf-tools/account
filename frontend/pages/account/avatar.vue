@@ -22,7 +22,8 @@ const {
   usingSample: avatarSample,
   load: loadAvatar,
   upload: uploadAvatar,
-  useGravatar
+  useGravatar,
+  useInitials
 } = useAvatar()
 
 // Which source the user is currently looking at; seeded from the active mode.
@@ -35,6 +36,11 @@ const avatarPreview = ref(null)
 const avatarPreviewSrc = computed(() => {
   if (selected.value === 'upload') {
     return avatarPreview.value || uploaded.value || avatarCurrent.value
+  }
+  if (selected.value === 'initials') {
+    // Only preview the real generated image once it's the active mode; otherwise
+    // fall through to the letter placeholder below.
+    return mode.value === 'initials' ? avatarCurrent.value : null
   }
   return gravatar.value || avatarCurrent.value
 })
@@ -80,6 +86,12 @@ async function onSaveAvatar() {
 
 async function onUseGravatar() {
   if (await useGravatar()) {
+    clearAvatarSelection()
+  }
+}
+
+async function onUseInitials() {
+  if (await useInitials()) {
     clearAvatarSelection()
   }
 }
@@ -193,7 +205,7 @@ onMounted(async () => {
         <div class="min-w-0 flex-1 space-y-4">
           <fieldset class="space-y-2">
             <legend class="field-label">Avatar source</legend>
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-2">
               <label
                 class="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm transition"
                 :class="
@@ -206,6 +218,21 @@ onMounted(async () => {
                 <span class="min-w-0">
                   <span class="block font-medium text-slate-900">Gravatar</span>
                   <span class="block text-xs text-slate-500">Uses the image linked to your email.</span>
+                </span>
+              </label>
+
+              <label
+                class="flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm transition"
+                :class="
+                  selected === 'initials'
+                    ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-500'
+                    : 'border-slate-300 hover:bg-slate-50'
+                "
+              >
+                <input v-model="selected" type="radio" value="initials" class="mt-0.5 accent-sky-600" />
+                <span class="min-w-0">
+                  <span class="block font-medium text-slate-900">Use initials</span>
+                  <span class="block text-xs text-slate-500">Your initials on a colored background.</span>
                 </span>
               </label>
 
@@ -239,6 +266,20 @@ onMounted(async () => {
               @click="onUseGravatar"
             >
               {{ avatarSaving ? 'Saving…' : mode === 'gravatar' ? 'Using Gravatar' : 'Use Gravatar' }}
+            </button>
+          </div>
+
+          <div v-else-if="selected === 'initials'" class="space-y-2">
+            <p class="text-sm text-slate-500">
+              Your avatar will show your initials on a colored background, generated from your name.
+            </p>
+            <button
+              type="button"
+              class="btn-primary w-auto px-4"
+              :disabled="avatarSaving || mode === 'initials'"
+              @click="onUseInitials"
+            >
+              {{ avatarSaving ? 'Saving…' : mode === 'initials' ? 'Using initials' : 'Use initials' }}
             </button>
           </div>
 
@@ -324,7 +365,7 @@ onMounted(async () => {
 
         <div class="min-w-0 flex-1 space-y-3">
           <p class="text-sm text-slate-500">
-            PNG, JPEG or WebP, up to 15&nbsp;MB. Resized on upload; aspect ratio is kept.
+            PNG, JPEG or WebP, up to 15&nbsp;MB. Resized on upload; aspect ratio is kept, up to a maximum edge of 1600px (cropped otherwise).
           </p>
 
           <input

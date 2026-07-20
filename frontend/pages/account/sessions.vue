@@ -18,6 +18,21 @@ function deviceLabel(session) {
   return session.browser || session.os || session.rawUserAgent || 'Unknown device'
 }
 
+// Turn an ISO 3166-1 alpha-2 country code into its flag emoji by mapping each
+// letter to the corresponding Unicode regional indicator symbol. Returns '' for
+// anything that isn't a two-letter code.
+function flagEmoji(countryCode) {
+  if (!countryCode || countryCode.length !== 2) {
+    return ''
+  }
+  const code = countryCode.toUpperCase()
+  if (!/^[A-Z]{2}$/.test(code)) {
+    return ''
+  }
+  const base = 0x1f1e6
+  return String.fromCodePoint(base + code.charCodeAt(0) - 65, base + code.charCodeAt(1) - 65)
+}
+
 function formatDate(value) {
   if (!value) {
     return ''
@@ -104,7 +119,7 @@ onMounted(load)
           </div>
           <p class="mt-0.5 text-xs text-slate-500">
             <span v-if="session.ip">{{ session.ip }}</span>
-            <span v-if="session.location"> · {{ session.location }}</span>
+            <span v-if="session.location"> · <span v-if="flagEmoji(session.countryCode)" aria-hidden="true" class="mr-1">{{ flagEmoji(session.countryCode) }}</span>{{ session.location }}</span>
           </p>
           <p v-if="formatDate(session.lastUsed)" class="mt-0.5 text-xs text-slate-500">
             Last active {{ formatDate(session.lastUsed) }}

@@ -157,6 +157,9 @@ onMounted(load)
           type="date"
           class="field-input mt-2"
         />
+        <p v-if="form.expiring" class="mt-1 text-xs text-slate-500">
+          The token will be valid until the end of the day.
+        </p>
       </div>
       <p v-if="createError" class="text-sm text-red-600">{{ createError }}</p>
       <div class="flex gap-2">
@@ -235,7 +238,7 @@ onMounted(load)
             :disabled="busy === token.identifier"
             @click="onCopy(token)"
           >
-            {{ copied === token.identifier ? 'Copied!' : 'Copy' }}
+            {{ copied === token.identifier ? 'Copied!' : 'Copy token' }}
           </button>
           <button
             class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white
