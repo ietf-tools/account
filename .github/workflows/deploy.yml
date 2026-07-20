@@ -83,6 +83,7 @@ jobs:
           AUTHENTIK_FLOW_AUTHENTICATION: ietf-login
           AUTHENTIK_FLOW_ENROLLMENT: ietf-enrollment
           AUTHENTIK_FLOW_RECOVERY: ietf-recovery
+          AUTHENTIK_FLOW_USER_SETTINGS: ietf-user-settings-flow
 
       - name: Stage assets under /app
         # Nuxt emits flat files (_nuxt/…) but the HTML references them at

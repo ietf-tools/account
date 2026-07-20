@@ -70,39 +70,51 @@ onMounted(load)
         >
           {{ section.name || 'Other' }}
         </h2>
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-[0_2px_5px_-1px_rgb(15_23_42_/_0.1)] divide-y divide-slate-100">
           <a
             v-for="app in section.apps"
             :key="app.pk"
             :href="app.launchUrl"
             :target="app.openInNewTab ? '_blank' : '_self'"
             rel="noopener"
-            class="group flex items-start gap-3 rounded-xl border border-slate-200 bg-gradient-to-b
-              from-white to-slate-50 p-4 shadow-sm ring-1 ring-inset ring-white transition
-              hover:border-sky-300 hover:to-white hover:shadow-md"
+            class="group flex items-center gap-3 px-4 py-3 transition hover:bg-white"
           >
             <img
               v-if="app.icon"
               :src="app.icon"
               alt=""
-              class="h-14 w-14 shrink-0 rounded-lg object-contain"
+              class="h-9 w-9 shrink-0 rounded-lg object-contain"
             />
             <span
               v-else
               aria-hidden="true"
-              class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-sky-100
-                text-2xl font-semibold text-sky-700"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100
+                text-base font-semibold text-sky-700"
             >
               {{ app.name.charAt(0).toUpperCase() }}
             </span>
-            <span class="min-w-0">
-              <span class="block truncate font-medium text-slate-900 group-hover:text-sky-700">
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-slate-900 group-hover:text-sky-700">
                 {{ app.name }}
               </span>
-              <span v-if="app.description" class="mt-0.5 block text-xs text-slate-500 line-clamp-2">
+              <span
+                v-if="app.description"
+                :title="app.description"
+                class="block truncate text-xs text-slate-500"
+              >
                 {{ app.description }}
               </span>
             </span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              class="h-4 w-4 shrink-0 text-slate-300 group-hover:text-sky-400"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
           </a>
         </div>
       </section>
