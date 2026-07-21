@@ -25,14 +25,9 @@ export const useAuthStore = defineStore('auth', () => {
     ready.value = true
   }
 
-  // End the authentik session by running its (brand default) invalidation flow
-  // directly. Slug is configurable like the other flows (AUTHENTIK_FLOW_INVALIDATION).
-  async function logout() {
-    const ak = useAuthentik()
-    const slug = useRuntimeConfig().public.flows.invalidation
-    await ak(`/flows/executor/${slug}/?query=`).catch(() => {})
-    user.value = null
-  }
+  // Signing out is driven in the UI by the /signed-out page (it runs authentik's
+  // `invalidation` flow through FlowExecutor and calls setUser(null) on
+  // completion), so there's no logout() here — the store just tracks state.
 
-  return { user, ready, isAuthenticated, fetchSession, setUser, logout }
+  return { user, ready, isAuthenticated, fetchSession, setUser }
 })

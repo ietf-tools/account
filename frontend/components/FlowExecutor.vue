@@ -339,8 +339,11 @@ function continueWithSource(source) {
 //     (client-side; the default provider invalidation flow does NOT end the
 //     authentik session, so the user is still authenticated).
 //   backToApplication — full-page to the app's launch URL, re-entering it.
-//   signOutEntirely — full-page to the brand's default invalidation flow (the
-//     real logout, user_logout stage), whose URL authentik hands us here.
+//   signOutEntirely — to our in-app sign-out page, which drives the brand's
+//     default invalidation flow (the real logout) in this UI rather than sending
+//     the browser to authentik's native flow view. authentik's own
+//     invalidation_flow_url points at that same flow; /signed-out drives our
+//     configured `invalidation` slug (the two are the same flow by config).
 function returnToApplications() {
   return navigateTo('/account/applications')
 }
@@ -351,10 +354,7 @@ function backToApplication() {
   }
 }
 function signOutEntirely() {
-  const url = challenge.value?.invalidation_flow_url
-  if (url) {
-    window.location.assign(url)
-  }
+  return navigateTo('/signed-out')
 }
 </script>
 
@@ -640,7 +640,7 @@ function signOutEntirely() {
           <button
             v-if="challenge.invalidation_flow_url"
             type="button"
-            class="link block w-full text-center text-sm"
+            class="btn-social w-full justify-center text-red-600"
             @click="signOutEntirely"
           >
             Sign out of IETF Account entirely

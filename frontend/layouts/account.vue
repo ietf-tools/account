@@ -74,9 +74,10 @@ const initial = computed(() => {
   return source.charAt(0).toUpperCase()
 })
 
-async function onLogout() {
-  await auth.logout()
-  router.push('/login')
+function onLogout() {
+  // The /signed-out page drives the invalidation (logout) flow in our own UI and
+  // clears the session record on completion — one place owns the sign-out UX.
+  router.push('/signed-out')
 }
 
 // Easter egg: clicking the sidebar avatar rains confetti from where you clicked.
