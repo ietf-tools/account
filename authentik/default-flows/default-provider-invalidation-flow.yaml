@@ -1,0 +1,24 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: invalidation
+    layout: stacked
+    name: Logged out of application
+    policy_engine_mode: any
+    title: You've logged out of %(app)s.
+  conditions: []
+  identifiers:
+    pk: c32065dc-31c1-40bb-b3f1-fbd8be6d5bc4
+    slug: default-provider-invalidation-flow
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:12.181768+00:00
+version: 1

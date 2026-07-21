@@ -1,0 +1,236 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: recovery
+    layout: sidebar_left
+    name: ietf-recovery
+    policy_engine_mode: any
+    title: Reset account password
+  conditions: []
+  identifiers:
+    pk: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+    slug: ietf-recovery
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    field_key: password
+    initial_value: ''
+    initial_value_expression: false
+    label: Password
+    name: default-password-change-field-password
+    order: 300
+    placeholder: Password
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: password
+  conditions: []
+  identifiers:
+    pk: 9bc921cc-24a7-49cf-b3bc-2d775f180b85
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: password_repeat
+    initial_value: ''
+    initial_value_expression: false
+    label: Password (repeat)
+    name: default-password-change-field-password-repeat
+    order: 301
+    placeholder: Password (repeat)
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: password
+  conditions: []
+  identifiers:
+    pk: ab907512-cd6d-47aa-a569-554f30824324
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    amount_digits: 0
+    amount_lowercase: 0
+    amount_symbols: 0
+    amount_uppercase: 0
+    check_have_i_been_pwned: false
+    check_static_rules: true
+    check_zxcvbn: true
+    error_message: Password needs to be 8 characters or longer.
+    execution_logging: false
+    hibp_allowed_count: 0
+    length_min: 8
+    name: default-password-change-password-policy
+    password_field: password
+    symbol_charset: '!\"#$%&''()*+,-./:;<=>?@[\]^_`{|}~ '
+    zxcvbn_score_threshold: 2
+  conditions: []
+  identifiers:
+    pk: c4a9700b-1687-4055-8476-28e440200912
+  model: authentik_policies_password.passwordpolicy
+  permissions: []
+  state: present
+- attrs:
+    create_users_as_inactive: false
+    create_users_group: null
+    user_creation_mode: never_create
+    user_path_template: users
+    user_type: internal
+  conditions: []
+  identifiers:
+    name: ietf-recovery-write-data-stage
+    pk: 2e638da7-7d08-4504-a477-3f05adde7c67
+  model: authentik_stages_user_write.userwritestage
+  permissions: []
+  state: present
+- attrs:
+    activate_user_on_success: true
+    from_address: system@authentik.local
+    host: localhost
+    port: 25
+    recovery_cache_timeout: minutes=5
+    recovery_max_attempts: 5
+    subject: Reset IETF account password
+    template: email/password_reset.html
+    timeout: 10
+    token_expiry: minutes=30
+    use_global_settings: true
+    use_ssl: false
+    use_tls: false
+    username: ''
+  conditions: []
+  identifiers:
+    name: ietf-recovery-email-verification-stage
+    pk: 6ee51afb-a4e4-4365-9504-9a4a08075dda
+  model: authentik_stages_email.emailstage
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - 9bc921cc-24a7-49cf-b3bc-2d775f180b85
+    - ab907512-cd6d-47aa-a569-554f30824324
+    validation_policies:
+    - c4a9700b-1687-4055-8476-28e440200912
+  conditions: []
+  identifiers:
+    name: ietf-recovery-change-password-stage
+    pk: 2271c89b-fda4-46bd-a019-76607ebf2f85
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    captcha_stage: null
+    case_insensitive_matching: true
+    enable_remember_me: false
+    enrollment_flow: null
+    password_stage: null
+    passwordless_flow: null
+    pretend_user_exists: true
+    recovery_flow: null
+    show_matched_user: false
+    show_source_labels: false
+    sources: []
+    user_fields:
+    - email
+    webauthn_stage: null
+  conditions: []
+  identifiers:
+    name: ietf-recovery-email-identification-stage
+    pk: daa031b4-7466-450c-aafc-ca87fbc23fcd
+  model: authentik_stages_identification.identificationstage
+  permissions: []
+  state: present
+- attrs:
+    geoip_binding: bind_continent
+    network_binding: bind_asn
+    remember_device: days=30
+    remember_me_offset: seconds=0
+    session_duration: seconds=0
+    terminate_other_sessions: false
+  conditions: []
+  identifiers:
+    name: ietf-recovery-login-stage
+    pk: 8c6ce2ad-2f40-4e5f-aa4e-8212a99e044b
+  model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 614d36c2-8eaf-4fca-889f-b2657e67d965
+    stage: daa031b4-7466-450c-aafc-ca87fbc23fcd
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 1
+    pk: a9603b86-f39b-4bab-9b0c-078525c7f0b0
+    stage: 6ee51afb-a4e4-4365-9504-9a4a08075dda
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 2
+    pk: 0d90bccf-8373-4312-b2af-285831623f53
+    stage: 2271c89b-fda4-46bd-a019-76607ebf2f85
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 3
+    pk: ea762035-06de-4982-bf17-e002893e4ee7
+    stage: 2e638da7-7d08-4504-a477-3f05adde7c67
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 4
+    pk: d10c2396-3fcf-4002-9327-502957e28be4
+    stage: 8c6ce2ad-2f40-4e5f-aa4e-8212a99e044b
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:59:16.422322+00:00
+version: 1

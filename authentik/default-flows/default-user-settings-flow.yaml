@@ -1,0 +1,194 @@
+context: {}
+entries:
+- attrs:
+    authentication: require_authenticated
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: stage_configuration
+    layout: stacked
+    name: User settings
+    policy_engine_mode: any
+    title: Update your info
+  conditions: []
+  identifiers:
+    pk: 1d9bec44-1c73-45ce-8913-d077fec0ba87
+    slug: default-user-settings-flow
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    field_key: email
+    initial_value: "try:\n    return user.email\nexcept:\n    return ''"
+    initial_value_expression: true
+    label: Email
+    name: default-user-settings-field-email
+    order: 202
+    placeholder: Email
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: email
+  conditions: []
+  identifiers:
+    pk: a73b83fa-698d-4e24-b50e-5099eb1b6219
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: name
+    initial_value: "try:\n    return user.name\nexcept:\n    return ''"
+    initial_value_expression: true
+    label: Name
+    name: default-user-settings-field-name
+    order: 201
+    placeholder: Name
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: text
+  conditions: []
+  identifiers:
+    pk: 04aa03d3-03b4-4d71-8429-d8190a72f059
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: attributes.pronouns
+    initial_value: return request.user.attributes.get("pronouns", "")
+    initial_value_expression: true
+    label: Pronouns
+    name: ietf-user-settings-field-pronouns
+    order: 400
+    placeholder: e.g. he/him, she/her
+    placeholder_expression: false
+    required: false
+    sub_text: Optionally provide your personal pronouns. These will be displayed on
+      your public Datatracker profile page, alongside your name in Meetecho, etc.
+    type: text
+  conditions: []
+  identifiers:
+    pk: 25e3e4a4-aa8d-4d31-bf41-5efd73620f77
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: attributes.location
+    initial_value: return request.user.attributes.get("location", "")
+    initial_value_expression: true
+    label: Location
+    name: ietf-user-settings-field-location
+    order: 500
+    placeholder: "e.g. Montr\xE9al, Canada"
+    placeholder_expression: false
+    required: false
+    sub_text: ''
+    type: text
+  conditions: []
+  identifiers:
+    pk: 5c46e8bf-74f3-4266-9f53-0fae5e384f86
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: attributes.company
+    initial_value: return request.user.attributes.get("company", "")
+    initial_value_expression: true
+    label: Company / Affiliation
+    name: ietf-user-settings-field-company
+    order: 600
+    placeholder: e.g. ACME Corporation
+    placeholder_expression: false
+    required: false
+    sub_text: ''
+    type: text
+  conditions: []
+  identifiers:
+    pk: fa8953a3-2ced-4734-bfca-6a954fe97aa2
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: "from authentik.core.models import (\n    USER_ATTRIBUTE_CHANGE_EMAIL,\n\
+      \    USER_ATTRIBUTE_CHANGE_NAME,\n    USER_ATTRIBUTE_CHANGE_USERNAME\n)\nprompt_data\
+      \ = request.context.get(\"prompt_data\")\n\nif not request.user.group_attributes(request.http_request).get(\n\
+      \    USER_ATTRIBUTE_CHANGE_EMAIL, request.http_request.tenant.default_user_change_email\n\
+      ):\n    if prompt_data.get(\"email\") != request.user.email:\n        ak_message(\"\
+      Not allowed to change email address.\")\n        return False\n\nif not request.user.group_attributes(request.http_request).get(\n\
+      \    USER_ATTRIBUTE_CHANGE_NAME, request.http_request.tenant.default_user_change_name\n\
+      ):\n    if prompt_data.get(\"name\") != request.user.name:\n        ak_message(\"\
+      Not allowed to change name.\")\n        return False\n\nif not request.user.group_attributes(request.http_request).get(\n\
+      \    USER_ATTRIBUTE_CHANGE_USERNAME, request.http_request.tenant.default_user_change_username\n\
+      ):\n    if prompt_data.get(\"username\") != request.user.username:\n       \
+      \ ak_message(\"Not allowed to change username.\")\n        return False\n\n\
+      return True"
+    name: default-user-settings-authorization
+  conditions: []
+  identifiers:
+    pk: 201960e8-566c-46f5-94f5-b6b0982ce4e8
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    create_users_as_inactive: false
+    create_users_group: null
+    user_creation_mode: never_create
+    user_path_template: ''
+    user_type: external
+  conditions: []
+  identifiers:
+    name: default-user-settings-write
+    pk: 2a4e442f-0fef-4e25-9bf4-51281ae6d137
+  model: authentik_stages_user_write.userwritestage
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - a73b83fa-698d-4e24-b50e-5099eb1b6219
+    - 04aa03d3-03b4-4d71-8429-d8190a72f059
+    - 25e3e4a4-aa8d-4d31-bf41-5efd73620f77
+    - 5c46e8bf-74f3-4266-9f53-0fae5e384f86
+    - fa8953a3-2ced-4734-bfca-6a954fe97aa2
+    validation_policies:
+    - 201960e8-566c-46f5-94f5-b6b0982ce4e8
+  conditions: []
+  identifiers:
+    name: default-user-settings
+    pk: 5e968af2-805b-4618-b8c9-fc869a24e622
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 20
+    pk: dd3b728d-adb1-425e-a126-68fcdd804e6a
+    stage: 5e968af2-805b-4618-b8c9-fc869a24e622
+    target: 1d9bec44-1c73-45ce-8913-d077fec0ba87
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 100
+    pk: e9eed40a-a7c4-450c-b7f8-bf72e3bc9018
+    stage: 2a4e442f-0fef-4e25-9bf4-51281ae6d137
+    target: 1d9bec44-1c73-45ce-8913-d077fec0ba87
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:47.057640+00:00
+version: 1

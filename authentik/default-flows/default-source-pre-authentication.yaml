@@ -1,0 +1,24 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: stage_configuration
+    layout: stacked
+    name: Pre-Authentication
+    policy_engine_mode: any
+    title: Pre-authentication
+  conditions: []
+  identifiers:
+    pk: 36496c97-44c7-4ae3-86e8-659ba166dd67
+    slug: default-source-pre-authentication
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:42.889159+00:00
+version: 1

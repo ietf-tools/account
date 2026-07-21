@@ -100,6 +100,30 @@ the terminal redirect back to `next` — again rejoining the finalize path.
 > won't stick, so exercise social login (and its interactive callback) against a
 > same-host deployment.
 
+### Email confirmation (manual enrollment)
+
+A manually created account gets a confirmation email whose link points at
+`/if/flow/ietf-enrollment/?<token>`. authentik's email stage would consume that
+token on the **GET** — so an email client that pre-fetches the link (Outlook,
+Microsoft Defender) verifies the account before the user ever clicks. The
+enrollment flow guards against that with an interactive **Confirm** stage (a prompt)
+before the token is consumed: the token only advances on a **POST**.
+
+**Rule 8** intercepts the link to `/app/verify-email`, where
+[`verify-email.vue`](frontend/pages/verify-email.vue) drives the enrollment flow
+through `FlowExecutor` **in resume mode**, forwarding the token (the preserved
+querystring) so authentik restores the pending enrollment and renders the Confirm
+stage. The user clicks Confirm → the POST consumes the token and completes the
+flow. This is doubly pre-fetch-safe: the token advances only on the explicit POST,
+**and** because the SPA needs JavaScript to call the executor at all, a plain link
+pre-fetch (which doesn't run JS) never reaches authentik. On completion the flow
+follows its own terminal redirect; failing that the page routes to sign-in.
+
+> The Confirm stage renders via `FlowExecutor`'s `ak-stage-prompt` branch (the
+> usual anti-pre-fetch stage). If your flow uses a different component for it, add
+> a branch in [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) — an
+> unhandled stage still renders a labelled fallback rather than dead-ending.
+
 ## Project layout
 
 ```
@@ -236,12 +260,14 @@ documented here so they aren't lost tribal knowledge.
 | 5 | `/if/flow/ietf-invalidation/` → `/app/signed-out` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-invalidation/"` | A sign-out landing on authentik's stock logout view |
 | 6 | `/if/flow/ietf-social-callback/` → `/app/social-callback` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-social-callback/"` | An interactive social-login return landing on authentik's stock flow UI |
 | 7 | `/if/flow/ietf-social-enrollment/` → `/app/social-enrollment` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-social-enrollment/"` | A first-time social sign-up landing on authentik's stock flow UI |
+| 8 | `/if/flow/ietf-enrollment/` → `/app/verify-email` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-enrollment/"` | An enrollment email-confirmation link landing on authentik's stock flow UI |
 
-Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–7
-must **preserve the querystring**, so make them *dynamic* redirects — e.g.
+Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–8
+must **preserve the querystring** (rule 8 especially — it carries the email
+confirmation token), so make them *dynamic* redirects — e.g.
 `concat("https://account.ietf.org/app/login?", http.request.uri.query)` for rule 3
-and the matching `/app/{logout,signed-out,social-callback,social-enrollment}?…`
-targets for rules 4–7 (302).
+and the matching `/app/{logout,signed-out,social-callback,social-enrollment,verify-email}?…`
+targets for rules 4–8 (302).
 
 **Rule 1 must match the root exactly** (`eq "/"`, not `starts_with`) — a prefix
 match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/*`
@@ -253,13 +279,17 @@ Worker an `/if/*` route would collide with authentik, which needs the rest of
 render in. So do **not** blanket-redirect `/if/flow/*`, `/source/*`, `/flows/*`,
 `/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
 
-**Rules 3–7 are the scoped exceptions** to that `/if/flow/*` warning: each matches
+**Rules 3–8 are the scoped exceptions** to that `/if/flow/*` warning: each matches
 a single flow slug *exactly* (`/if/flow/ietf-login/`,
 `/if/flow/ietf-provider-invalidation/`, `/if/flow/ietf-invalidation/`,
-`/if/flow/ietf-social-callback/`, `/if/flow/ietf-social-enrollment/`), so they
-leave every other flow — recovery-email links, MFA setup, admin flows — rendering
-in authentik. Keep them exact; a slug that both a rule and another purpose share
-will route here for both, so give each intercepted flow its own dedicated slug.
+`/if/flow/ietf-social-callback/`, `/if/flow/ietf-social-enrollment/`,
+`/if/flow/ietf-enrollment/`), so they leave every other flow — recovery-email
+links, MFA setup, admin flows — rendering in authentik. Keep them exact; a slug
+that both a rule and another purpose share will route here for both, so give each
+intercepted flow its own dedicated slug. (Rule 8's `ietf-enrollment` is shared with
+the registration page, but that's safe: the browser only *loads*
+`/if/flow/ietf-enrollment/` from the email link — the registration form drives the
+executor API directly and never hits that path.)
 
 ### Third-party OAuth logins
 

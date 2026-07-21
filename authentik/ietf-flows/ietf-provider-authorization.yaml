@@ -1,0 +1,24 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: authorization
+    layout: stacked
+    name: Authorize Application
+    policy_engine_mode: any
+    title: Redirecting to %(app)s
+  conditions: []
+  identifiers:
+    pk: eb6f772e-b6ad-4d82-8474-0621c11336e6
+    slug: ietf-provider-authorization
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 06:00:01.626615+00:00
+version: 1

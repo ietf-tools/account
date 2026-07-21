@@ -1,7 +1,7 @@
 <script setup>
 // Landing for an app's OIDC logout. authentik's provider builds an invalidation
 // flow plan bound to the app and 302s the browser to
-// /if/flow/ietf-provider-invalidation-flow/?…; a Cloudflare rule rewrites that to
+// /if/flow/ietf-provider-invalidation/?…; a Cloudflare rule rewrites that to
 // /app/logout?… (see README "Edge routing"). We drive that flow through the
 // executor in RESUME mode — cancelling would drop the app context authentik put
 // in the plan — and it ends on an ak-stage-session-end challenge, which

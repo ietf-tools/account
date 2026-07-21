@@ -1,0 +1,48 @@
+context: {}
+entries:
+- attrs:
+    authentication: require_authenticated
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: authorization
+    layout: stacked
+    name: Authorize Application
+    policy_engine_mode: any
+    title: Redirecting to %(app)s
+  conditions: []
+  identifiers:
+    pk: 83cb92cc-9b90-438f-827b-fdfe3e86b484
+    slug: default-provider-authorization-explicit-consent
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    consent_expire_in: weeks=4
+    mode: expiring
+  conditions: []
+  identifiers:
+    name: default-provider-authorization-consent
+    pk: 34e6448d-50d4-414f-99b4-1aa67e8a691e
+  model: authentik_stages_consent.consentstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 59623d05-b1c2-4450-ba51-253523390b78
+    stage: 34e6448d-50d4-414f-99b4-1aa67e8a691e
+    target: 83cb92cc-9b90-438f-827b-fdfe3e86b484
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:57:47.375582+00:00
+version: 1

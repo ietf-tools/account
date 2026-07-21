@@ -80,14 +80,6 @@ jobs:
         env:
           NUXT_APP_BASE_URL: /app/
           NUXT_PUBLIC_API_URL: /app-api
-          AUTHENTIK_FLOW_AUTHENTICATION: ietf-login
-          AUTHENTIK_FLOW_ENROLLMENT: ietf-enrollment
-          AUTHENTIK_FLOW_RECOVERY: ietf-recovery
-          AUTHENTIK_FLOW_USER_SETTINGS: ietf-user-settings-flow
-          AUTHENTIK_FLOW_PASSWORD_CHANGE: ietf-password-change
-          AUTHENTIK_FLOW_TOTP_SETUP: default-authenticator-totp-setup
-          AUTHENTIK_FLOW_WEBAUTHN_SETUP: default-authenticator-webauthn-setup
-          AUTHENTIK_FLOW_STATIC_SETUP: default-authenticator-static-setup
 
       - name: Stage assets under /app
         # Nuxt emits flat files (_nuxt/…) but the HTML references them at

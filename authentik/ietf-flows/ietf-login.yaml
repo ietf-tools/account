@@ -1,0 +1,155 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: https://static.ietf.org/images/pawel-nolbert-4u2U8EO9OzY-unsplash.jpg
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: authentication
+    layout: sidebar_left
+    name: ietf-login
+    policy_engine_mode: any
+    title: IETF Account Authentication
+  conditions: []
+  identifiers:
+    pk: 1f2bc718-78f0-4eb8-ad94-c395d4b08d7b
+    slug: ietf-login
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    geoip_binding: bind_continent
+    network_binding: bind_asn
+    remember_device: days=30
+    remember_me_offset: seconds=0
+    session_duration: seconds=0
+    terminate_other_sessions: false
+  conditions: []
+  identifiers:
+    name: ietf-login-stage
+    pk: 15acbb54-f40a-4c85-b253-9891561eecab
+  model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    captcha_stage: null
+    case_insensitive_matching: true
+    enable_remember_me: true
+    enrollment_flow: 18e7dd30-f048-40d8-8dad-780c2c78c653
+    password_stage: null
+    passwordless_flow: 0e52fe9f-96ff-49b1-8c29-eaab48404f52
+    pretend_user_exists: true
+    recovery_flow: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+    show_matched_user: true
+    show_source_labels: true
+    sources:
+    - 26da9b6e-d1a4-4f80-a1a2-1804329c6a51
+    - 39104f0d-db46-47f2-8091-fa0185d8b9a4
+    - 8c93de74-be55-4c7e-a7b4-35f0d3e1c3ad
+    user_fields:
+    - email
+    webauthn_stage: 66c409d6-d85f-4ff2-83e2-e1d0c2f52ff9
+  conditions: []
+  identifiers:
+    name: ietf-identification-stage
+    pk: f1b07078-4684-469b-a468-21247560bb2a
+  model: authentik_stages_identification.identificationstage
+  permissions: []
+  state: present
+- attrs:
+    configuration_stages: []
+    device_classes:
+    - static
+    - totp
+    - webauthn
+    email_otp_throttling_factor: 1.0
+    last_auth_threshold: seconds=0
+    not_configured_action: skip
+    sms_otp_throttling_factor: 1.0
+    static_otp_throttling_factor: 1.0
+    totp_otp_throttling_factor: 1.0
+    webauthn_allowed_device_types: []
+    webauthn_hints: []
+    webauthn_user_verification: preferred
+  conditions: []
+  identifiers:
+    name: ietf-mfa-validation-stage
+    pk: 66c409d6-d85f-4ff2-83e2-e1d0c2f52ff9
+  model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+  permissions: []
+  state: present
+- attrs:
+    allow_show_password: false
+    backends:
+    - authentik.core.auth.InbuiltBackend
+    - authentik.core.auth.TokenBackend
+    configure_flow: 85655bc0-306b-4d8e-aadc-dc1f2c5a9d33
+    failed_attempts_before_cancel: 5
+  conditions: []
+  identifiers:
+    name: ietf-password-stage
+    pk: e7bbccad-e100-4436-8426-7ab3f4fe4389
+  model: authentik_stages_password.passwordstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 10
+    pk: f5841d0f-0347-4dbf-97c0-6c11a0fe255b
+    stage: f1b07078-4684-469b-a468-21247560bb2a
+    target: 1f2bc718-78f0-4eb8-ad94-c395d4b08d7b
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 20
+    pk: e40f9518-b74d-4bda-a317-64d6d2eebee5
+    stage: e7bbccad-e100-4436-8426-7ab3f4fe4389
+    target: 1f2bc718-78f0-4eb8-ad94-c395d4b08d7b
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 30
+    pk: e116d05d-65a3-4898-ad45-bf7ca714d371
+    stage: 66c409d6-d85f-4ff2-83e2-e1d0c2f52ff9
+    target: 1f2bc718-78f0-4eb8-ad94-c395d4b08d7b
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 40
+    pk: 6d6a41c3-579c-42e5-8267-6bd4cf016868
+    stage: 15acbb54-f40a-4c85-b253-9891561eecab
+    target: 1f2bc718-78f0-4eb8-ad94-c395d4b08d7b
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 06:00:12.323841+00:00
+version: 1

@@ -1,0 +1,245 @@
+context: {}
+entries:
+- attrs:
+    authentication: require_unauthenticated
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: enrollment
+    layout: sidebar_left
+    name: ietf-enrollment
+    policy_engine_mode: any
+    title: Create an IETF account
+  conditions: []
+  identifiers:
+    pk: 18e7dd30-f048-40d8-8dad-780c2c78c653
+    slug: ietf-enrollment
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    field_key: email
+    initial_value: "try:\n    return user.email\nexcept:\n    return ''"
+    initial_value_expression: true
+    label: Email
+    name: default-user-settings-field-email
+    order: 202
+    placeholder: Email
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: email
+  conditions: []
+  identifiers:
+    pk: a73b83fa-698d-4e24-b50e-5099eb1b6219
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: password
+    initial_value: ''
+    initial_value_expression: false
+    label: Password
+    name: default-password-change-field-password
+    order: 300
+    placeholder: Password
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: password
+  conditions: []
+  identifiers:
+    pk: 9bc921cc-24a7-49cf-b3bc-2d775f180b85
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: password_repeat
+    initial_value: ''
+    initial_value_expression: false
+    label: Password (repeat)
+    name: default-password-change-field-password-repeat
+    order: 301
+    placeholder: Password (repeat)
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: password
+  conditions: []
+  identifiers:
+    pk: ab907512-cd6d-47aa-a569-554f30824324
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: name
+    initial_value: "try:\n    return user.name\nexcept:\n    return ''"
+    initial_value_expression: true
+    label: Name
+    name: default-user-settings-field-name
+    order: 201
+    placeholder: Name
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: text
+  conditions: []
+  identifiers:
+    pk: 04aa03d3-03b4-4d71-8429-d8190a72f059
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: 'email = request.context["prompt_data"]["email"]
+
+      request.context["prompt_data"]["username"] = email
+
+      return True'
+    name: ietf-enrollment-set-username-from-email
+  conditions: []
+  identifiers:
+    pk: 33e9d3ea-6031-4e1b-96eb-8ba865500626
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    activate_user_on_success: true
+    from_address: system@authentik.local
+    host: localhost
+    port: 25
+    recovery_cache_timeout: minutes=5
+    recovery_max_attempts: 5
+    subject: IETF Account Verification
+    template: email/account_confirmation.html
+    timeout: 10
+    token_expiry: minutes=30
+    use_global_settings: true
+    use_ssl: false
+    use_tls: false
+    username: ''
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-emailverify
+    pk: c9ea979e-410e-45a4-8f8b-686ba47fa008
+  model: authentik_stages_email.emailstage
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - a73b83fa-698d-4e24-b50e-5099eb1b6219
+    - 9bc921cc-24a7-49cf-b3bc-2d775f180b85
+    - ab907512-cd6d-47aa-a569-554f30824324
+    - 04aa03d3-03b4-4d71-8429-d8190a72f059
+    validation_policies: []
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-prompt-newuser
+    pk: 7eb201d2-8cc2-49e0-addc-fdb4e3148ba0
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    geoip_binding: bind_continent
+    network_binding: bind_asn
+    remember_device: days=30
+    remember_me_offset: seconds=0
+    session_duration: seconds=0
+    terminate_other_sessions: false
+  conditions: []
+  identifiers:
+    name: ietf-login-stage
+    pk: 15acbb54-f40a-4c85-b253-9891561eecab
+  model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    create_users_as_inactive: true
+    create_users_group: null
+    user_creation_mode: always_create
+    user_path_template: users
+    user_type: internal
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-write
+    pk: 32a2ee87-8041-4a8f-af5c-4b4be7f68006
+  model: authentik_stages_user_write.userwritestage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 9c7da3f9-9223-4243-81e9-81d865611dc8
+    stage: 7eb201d2-8cc2-49e0-addc-fdb4e3148ba0
+    target: 18e7dd30-f048-40d8-8dad-780c2c78c653
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 1
+    pk: 699c532f-b3e9-4cec-8ba0-156a8eb21f0c
+    stage: 32a2ee87-8041-4a8f-af5c-4b4be7f68006
+    target: 18e7dd30-f048-40d8-8dad-780c2c78c653
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 2
+    pk: 43371ca3-f4cb-4a14-a2ea-250e2c17e8e3
+    stage: c9ea979e-410e-45a4-8f8b-686ba47fa008
+    target: 18e7dd30-f048-40d8-8dad-780c2c78c653
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 3
+    pk: 06bad14c-5e55-4b21-8234-b97832d02e9d
+    stage: 15acbb54-f40a-4c85-b253-9891561eecab
+    target: 18e7dd30-f048-40d8-8dad-780c2c78c653
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 57494e3b-26c1-49c3-b135-d96746bebf59
+    policy: 33e9d3ea-6031-4e1b-96eb-8ba865500626
+    target: 699c532f-b3e9-4cec-8ba0-156a8eb21f0c
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:59:49.863559+00:00
+version: 1

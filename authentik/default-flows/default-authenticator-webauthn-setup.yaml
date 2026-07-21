@@ -1,0 +1,55 @@
+context: {}
+entries:
+- attrs:
+    authentication: require_authenticated
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: stage_configuration
+    layout: stacked
+    name: default-authenticator-webauthn-setup
+    policy_engine_mode: any
+    title: Setup WebAuthn
+  conditions: []
+  identifiers:
+    pk: e7a27c41-47cc-4d29-aa53-a827c43e3046
+    slug: default-authenticator-webauthn-setup
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    authenticator_attachment: null
+    configure_flow: e7a27c41-47cc-4d29-aa53-a827c43e3046
+    device_type_restrictions: []
+    friendly_name: WebAuthn device
+    hints: []
+    max_attempts: 0
+    prevent_duplicate_devices: false
+    resident_key_requirement: preferred
+    user_verification: preferred
+  conditions: []
+  identifiers:
+    name: default-authenticator-webauthn-setup
+    pk: 357b7a4c-a829-41d4-8592-51fab1c7d0bc
+  model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 6443151f-a919-4970-acec-d3b5a74ece79
+    stage: 357b7a4c-a829-41d4-8592-51fab1c7d0bc
+    target: e7a27c41-47cc-4d29-aa53-a827c43e3046
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:29.039533+00:00
+version: 1

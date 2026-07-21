@@ -1,0 +1,182 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: enrollment
+    layout: stacked
+    name: Welcome to authentik! Please select a username.
+    policy_engine_mode: any
+    title: Welcome to authentik! Please select a username.
+  conditions: []
+  identifiers:
+    pk: 62e9c387-9507-4825-8d72-b320b43c2d4c
+    slug: default-source-enrollment
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    field_key: username
+    initial_value: ''
+    initial_value_expression: false
+    label: Username
+    name: default-source-enrollment-field-username
+    order: 100
+    placeholder: Username
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: username
+  conditions: []
+  identifiers:
+    pk: d71b7019-7bd5-4f6d-9e75-b46da89b4ed1
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: '# Check if we''''ve not been given a username by the external IdP
+
+      # and trigger the enrollment flow
+
+      return ''username'' not in context.get(''prompt_data'', {})'
+    name: default-source-enrollment-if-username
+  conditions: []
+  identifiers:
+    pk: cc0228c3-5b35-4f0e-9ffa-72635581fb61
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: '# This policy ensures that this flow can only be used when the user
+
+      # is in a SSO Flow (meaning they come from an external IdP)
+
+      return ak_is_sso_flow'
+    name: default-source-enrollment-if-sso
+  conditions: []
+  identifiers:
+    pk: 7f2eb1e9-226c-4519-9fa4-44db6ac05ab4
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    geoip_binding: no_binding
+    network_binding: no_binding
+    remember_device: days=30
+    remember_me_offset: seconds=0
+    session_duration: seconds=0
+    terminate_other_sessions: false
+  conditions: []
+  identifiers:
+    name: default-source-enrollment-login
+    pk: a884f94e-756f-4cd4-8abc-8cdb57eaec2d
+  model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - d71b7019-7bd5-4f6d-9e75-b46da89b4ed1
+    validation_policies: []
+  conditions: []
+  identifiers:
+    name: default-source-enrollment-prompt
+    pk: bcfc5c70-e3e9-4e7f-be75-d2a640fe229a
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    create_users_as_inactive: false
+    create_users_group: null
+    user_creation_mode: always_create
+    user_path_template: ''
+    user_type: external
+  conditions: []
+  identifiers:
+    name: default-source-enrollment-write
+    pk: 6e294850-d587-4e35-82ed-bec9776d63d3
+  model: authentik_stages_user_write.userwritestage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: a1c69270-1bb0-482b-a979-df7a607c2928
+    stage: bcfc5c70-e3e9-4e7f-be75-d2a640fe229a
+    target: 62e9c387-9507-4825-8d72-b320b43c2d4c
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 1
+    pk: 9a4fedae-4897-4fe6-aeef-d02175ab2c68
+    stage: 6e294850-d587-4e35-82ed-bec9776d63d3
+    target: 62e9c387-9507-4825-8d72-b320b43c2d4c
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 2
+    pk: 4e1c607e-9ee9-4cce-80bc-d78a7b6484cd
+    stage: a884f94e-756f-4cd4-8abc-8cdb57eaec2d
+    target: 62e9c387-9507-4825-8d72-b320b43c2d4c
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: d3e2c95a-3676-46ca-924f-f9b06da96f6e
+    policy: 7f2eb1e9-226c-4519-9fa4-44db6ac05ab4
+    target: 62e9c387-9507-4825-8d72-b320b43c2d4c
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: b4b65ee6-7ae0-49e3-ae84-e8b4f71c86ae
+    policy: cc0228c3-5b35-4f0e-9ffa-72635581fb61
+    target: a1c69270-1bb0-482b-a979-df7a607c2928
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:00.494916+00:00
+version: 1

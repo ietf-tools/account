@@ -1,0 +1,50 @@
+context: {}
+entries:
+- attrs:
+    authentication: require_authenticated
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: stage_configuration
+    layout: stacked
+    name: default-authenticator-static-setup
+    policy_engine_mode: any
+    title: Setup Static OTP Tokens
+  conditions: []
+  identifiers:
+    pk: 068612ff-8ab9-4c2f-8488-0446cb62e833
+    slug: default-authenticator-static-setup
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    configure_flow: 068612ff-8ab9-4c2f-8488-0446cb62e833
+    friendly_name: Static tokens
+    token_count: 6
+    token_length: 12
+  conditions: []
+  identifiers:
+    name: default-authenticator-static-setup
+    pk: e2976639-7ba6-4a8b-908e-3c031ec2f454
+  model: authentik_stages_authenticator_static.authenticatorstaticstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 819bacc9-74c5-490e-8736-9212891abf78
+    stage: e2976639-7ba6-4a8b-908e-3c031ec2f454
+    target: 068612ff-8ab9-4c2f-8488-0446cb62e833
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:18.686076+00:00
+version: 1

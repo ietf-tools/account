@@ -1,0 +1,60 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: enrollment
+    layout: sidebar_left
+    name: ietf-datatracker-migrate
+    policy_engine_mode: any
+    title: Migrate Legacy Datatracker Account
+  conditions: []
+  identifiers:
+    pk: b1a09caa-0891-47f7-b854-92513e8801a1
+    slug: ietf-datatracker-migrate
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    captcha_stage: null
+    case_insensitive_matching: true
+    enable_remember_me: false
+    enrollment_flow: null
+    password_stage: null
+    passwordless_flow: null
+    pretend_user_exists: true
+    recovery_flow: null
+    show_matched_user: false
+    show_source_labels: false
+    sources: []
+    user_fields:
+    - email
+    webauthn_stage: null
+  conditions: []
+  identifiers:
+    name: ietf-datatracker-migrate-email-identification-stage
+    pk: 35e75dd5-3f89-4289-a955-f4f9493e5ccd
+  model: authentik_stages_identification.identificationstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: a17a6219-8f0e-482a-814f-14cfd4caccdd
+    stage: 35e75dd5-3f89-4289-a955-f4f9493e5ccd
+    target: b1a09caa-0891-47f7-b854-92513e8801a1
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:59:56.846595+00:00
+version: 1

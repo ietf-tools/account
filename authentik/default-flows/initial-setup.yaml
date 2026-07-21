@@ -1,0 +1,246 @@
+context: {}
+entries:
+- attrs:
+    authentication: require_superuser
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: stage_configuration
+    layout: stacked
+    name: default-oobe-setup
+    policy_engine_mode: any
+    title: Welcome to authentik!
+  conditions: []
+  identifiers:
+    pk: 5535b18f-5675-403a-af55-107264f441c5
+    slug: initial-setup
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs:
+    field_key: password
+    initial_value: ''
+    initial_value_expression: false
+    label: Password
+    name: initial-setup-field-password
+    order: 300
+    placeholder: Password
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: password
+  conditions: []
+  identifiers:
+    pk: f2cdfa2a-da7d-4cfd-9376-5eeb6e8b4bcf
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: password_repeat
+    initial_value: ''
+    initial_value_expression: false
+    label: Password (repeat)
+    name: initial-setup-field-password-repeat
+    order: 301
+    placeholder: Password (repeat)
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: password
+  conditions: []
+  identifiers:
+    pk: a7415753-9b4c-4602-a4f9-786ac9c7bc3b
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: email
+    initial_value: ''
+    initial_value_expression: false
+    label: Email
+    name: initial-setup-field-email
+    order: 101
+    placeholder: Admin email
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: email
+  conditions: []
+  identifiers:
+    pk: 593855da-8396-4721-916a-8bb6ee319cc9
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    field_key: oobe-header-text
+    initial_value: Welcome to authentik! Please set a password and email address for
+      the default admin user, akadmin.
+    initial_value_expression: false
+    label: oobe-header-text
+    name: initial-setup-field-header
+    order: 100
+    placeholder: ''
+    placeholder_expression: false
+    required: true
+    sub_text: ''
+    type: static
+  conditions: []
+  identifiers:
+    pk: 74f1ace9-d973-446d-8040-1f20b22d394e
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: "# This policy ensures that the setup flow can only be\n# executed\
+      \ when the admin user doesn't have a password set\nakadmin = ak_user_by(username=\"\
+      akadmin\")\n# Ensure flow was started correctly\nstarted_by = context.get(\"\
+      goauthentik.io/core/setup/started-by\")\nif started_by != \"setup\":\n    setup_url\
+      \ = request.http_request.build_absolute_uri(\"/\")\n    ak_message(f\"Access\
+      \ the authentik setup by navigating to {setup_url}\")\n    return False\nreturn\
+      \ akadmin is None or not akadmin.has_usable_password()"
+    name: default-oobe-password-usable
+  conditions: []
+  identifiers:
+    pk: 9d0b171b-76f6-4800-b923-f8c18a3940c0
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: '# This policy sets the user for the currently running flow
+
+      # by injecting "pending_user"
+
+      akadmin = ak_user_by(username="akadmin")
+
+      context["flow_plan"].context["pending_user"] = akadmin
+
+      return True'
+    name: default-oobe-prefill-user
+  conditions: []
+  identifiers:
+    pk: 560e4f11-3c0c-4464-8fc7-1dcea4356326
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - f2cdfa2a-da7d-4cfd-9376-5eeb6e8b4bcf
+    - a7415753-9b4c-4602-a4f9-786ac9c7bc3b
+    - 593855da-8396-4721-916a-8bb6ee319cc9
+    - 74f1ace9-d973-446d-8040-1f20b22d394e
+    validation_policies: []
+  conditions: []
+  identifiers:
+    name: stage-default-oobe-password
+    pk: 229de05b-e117-45f2-8003-2ed47d231880
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    geoip_binding: no_binding
+    network_binding: no_binding
+    remember_device: days=30
+    remember_me_offset: seconds=0
+    session_duration: seconds=0
+    terminate_other_sessions: false
+  conditions: []
+  identifiers:
+    name: default-authentication-login
+    pk: 54e04dae-c68d-4ecb-9f23-42456bd5788f
+  model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    create_users_as_inactive: false
+    create_users_group: null
+    user_creation_mode: never_create
+    user_path_template: ''
+    user_type: external
+  conditions: []
+  identifiers:
+    name: default-password-change-write
+    pk: 7c3227c4-e719-445b-aa64-8ab0d33ebad0
+  model: authentik_stages_user_write.userwritestage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: true
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: false
+  conditions: []
+  identifiers:
+    order: 10
+    pk: c70ce199-3c33-4e08-88f7-da6ef82c5e4c
+    stage: 229de05b-e117-45f2-8003-2ed47d231880
+    target: 5535b18f-5675-403a-af55-107264f441c5
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 20
+    pk: 3ead60a0-1335-4cb5-b911-c16f0b9e7629
+    stage: 7c3227c4-e719-445b-aa64-8ab0d33ebad0
+    target: 5535b18f-5675-403a-af55-107264f441c5
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: true
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: false
+  conditions: []
+  identifiers:
+    order: 100
+    pk: 619f04bc-517b-40df-89a1-b16c4cea8b5e
+    stage: 54e04dae-c68d-4ecb-9f23-42456bd5788f
+    target: 5535b18f-5675-403a-af55-107264f441c5
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: cf8956f1-0ef3-447e-8ff1-55c24f43c718
+    policy: 9d0b171b-76f6-4800-b923-f8c18a3940c0
+    target: 5535b18f-5675-403a-af55-107264f441c5
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 3a2483f7-bd29-431b-a086-5e346b3beff0
+    policy: 560e4f11-3c0c-4464-8fc7-1dcea4356326
+    target: 3ead60a0-1335-4cb5-b911-c16f0b9e7629
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:55.332890+00:00
+version: 1

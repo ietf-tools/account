@@ -1,0 +1,46 @@
+context: {}
+entries:
+- attrs:
+    authentication: none
+    background: ''
+    compatibility_mode: false
+    denied_action: message_continue
+    designation: invalidation
+    layout: stacked
+    name: Logout
+    policy_engine_mode: any
+    title: Default Invalidation Flow
+  conditions: []
+  identifiers:
+    pk: 553a9b20-6cac-4bce-9668-abf36dac5329
+    slug: default-invalidation-flow
+  model: authentik_flows.flow
+  permissions: []
+  state: present
+- attrs: {}
+  conditions: []
+  identifiers:
+    name: default-invalidation-logout
+    pk: d7d59936-7893-4eb9-b836-cff3563d5ef4
+  model: authentik_stages_user_logout.userlogoutstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 9215b76a-95d5-43e9-a60c-da74820a573b
+    stage: d7d59936-7893-4eb9-b836-cff3563d5ef4
+    target: 553a9b20-6cac-4bce-9668-abf36dac5329
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/generated: 'true'
+  name: authentik Export - 2026-07-21 05:58:05.815592+00:00
+version: 1

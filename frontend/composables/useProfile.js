@@ -1,4 +1,4 @@
-// Drives authentik's user-settings flow (default-user-settings-flow) to let the
+// Drives authentik's user-settings flow (ietf-user-settings) to let the
 // signed-in user edit their own details — name, email, and whatever custom
 // prompt fields the flow defines (e.g. pronouns). authentik has no writable
 // self-serializer; profile edits go through this flow's prompt stage, exactly as
