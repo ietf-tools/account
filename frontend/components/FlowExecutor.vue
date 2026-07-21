@@ -19,7 +19,14 @@ const props = defineProps({
   // "confirm to proceed" step, used both for OAuth provider access-consent and as
   // an anti-pre-fetch confirmation in the enrollment flow — the wording differs by
   // context. Empty keeps the default OAuth "requesting access" copy + permissions.
-  consentText: { type: String, default: '' }
+  consentText: { type: String, default: '' },
+  // In resume mode, whether to follow authentik's terminal redirect (its `to`) on
+  // completion. True for provider-continuation flows (OAuth login/logout, social
+  // return) where that redirect IS the point — it hands the browser back to the
+  // downstream app. False for a standalone resume like the enrollment email
+  // confirmation, whose `to` only points into authentik's own user UI: there we
+  // emit `complete` instead so the host page resolves the session and routes.
+  followRedirect: { type: Boolean, default: true }
 })
 const emit = defineEmits(['complete'])
 
@@ -185,8 +192,9 @@ watch(complete, (done) => {
   }
   // Provider-initiated flow: hand the browser to authentik's terminal redirect,
   // which continues the OAuth exchange and returns to the third-party app with
-  // its code. A standalone login has no such downstream, so the page takes over.
-  if (props.resume && redirectTo.value) {
+  // its code. A standalone login (or a resume that opts out via followRedirect)
+  // has no such downstream, so the page takes over.
+  if (props.resume && props.followRedirect && redirectTo.value) {
     window.location.assign(redirectTo.value)
     return
   }

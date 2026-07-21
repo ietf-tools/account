@@ -116,8 +116,11 @@ querystring) so authentik restores the pending enrollment and renders the
 confirmation. The user clicks continue → the POST completes the flow. This is
 doubly pre-fetch-safe: the token advances only on the explicit POST, **and**
 because the SPA needs JavaScript to call the executor at all, a plain link
-pre-fetch (which doesn't run JS) never reaches authentik. On completion the flow
-follows its own terminal redirect; failing that the page routes to sign-in.
+pre-fetch (which doesn't run JS) never reaches authentik. The flow ends on a
+`User Login` stage, so the browser is signed in on completion; the page opts out of
+authentik's terminal redirect (`:follow-redirect="false"` — its `to` only points
+into authentik's own user UI), resolves the session itself, and routes into the
+signed-in area (falling back to sign-in if the flow didn't authenticate).
 
 > The confirmation is an `ak-stage-consent` stage (authentik's generic "confirm to
 > proceed" step). `FlowExecutor` renders it with `verify-email.vue`'s `consent-text`
