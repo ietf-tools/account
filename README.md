@@ -106,23 +106,25 @@ A manually created account gets a confirmation email whose link points at
 `/if/flow/ietf-enrollment/?<token>`. authentik's email stage would consume that
 token on the **GET** — so an email client that pre-fetches the link (Outlook,
 Microsoft Defender) verifies the account before the user ever clicks. The
-enrollment flow guards against that with an interactive **Confirm** stage (a prompt)
-before the token is consumed: the token only advances on a **POST**.
+enrollment flow guards against that with an interactive confirmation stage before
+the token is consumed: the token only advances on a **POST**.
 
 **Rule 8** intercepts the link to `/app/verify-email`, where
 [`verify-email.vue`](frontend/pages/verify-email.vue) drives the enrollment flow
 through `FlowExecutor` **in resume mode**, forwarding the token (the preserved
-querystring) so authentik restores the pending enrollment and renders the Confirm
-stage. The user clicks Confirm → the POST consumes the token and completes the
-flow. This is doubly pre-fetch-safe: the token advances only on the explicit POST,
-**and** because the SPA needs JavaScript to call the executor at all, a plain link
+querystring) so authentik restores the pending enrollment and renders the
+confirmation. The user clicks continue → the POST completes the flow. This is
+doubly pre-fetch-safe: the token advances only on the explicit POST, **and**
+because the SPA needs JavaScript to call the executor at all, a plain link
 pre-fetch (which doesn't run JS) never reaches authentik. On completion the flow
 follows its own terminal redirect; failing that the page routes to sign-in.
 
-> The Confirm stage renders via `FlowExecutor`'s `ak-stage-prompt` branch (the
-> usual anti-pre-fetch stage). If your flow uses a different component for it, add
-> a branch in [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) — an
-> unhandled stage still renders a labelled fallback rather than dead-ending.
+> The confirmation is an `ak-stage-consent` stage (authentik's generic "confirm to
+> proceed" step). `FlowExecutor` renders it with `verify-email.vue`'s `consent-text`
+> override and echoes the challenge's required `token` back on submit. If your flow
+> uses a different component, add a branch in
+> [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) — an unhandled stage
+> still renders a labelled fallback rather than dead-ending.
 
 ## Project layout
 

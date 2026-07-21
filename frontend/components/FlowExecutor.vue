@@ -14,7 +14,12 @@ const props = defineProps({
   resume: { type: Boolean, default: false },
   // Drop the card chrome (outer card, title, "continue as") so the flow can be
   // hosted inside another panel — e.g. MFA enrollment in the account shell.
-  embedded: { type: Boolean, default: false }
+  embedded: { type: Boolean, default: false },
+  // Override the ak-stage-consent body. A consent stage is authentik's generic
+  // "confirm to proceed" step, used both for OAuth provider access-consent and as
+  // an anti-pre-fetch confirmation in the enrollment flow — the wording differs by
+  // context. Empty keeps the default OAuth "requesting access" copy + permissions.
+  consentText: { type: String, default: '' }
 })
 const emit = defineEmits(['complete'])
 
@@ -250,6 +255,12 @@ async function onSubmit() {
       break
     case 'ak-stage-authenticator-static':
       // No fields — an empty submit confirms the codes were saved.
+      break
+    case 'ak-stage-consent':
+      // authentik's consent response requires the challenge's `token` echoed back
+      // (timing-safe compared server-side); without it the stage silently
+      // re-renders instead of advancing.
+      payload.token = challenge.value.token
       break
     case 'ak-stage-prompt':
       Object.assign(payload, model)
@@ -527,19 +538,24 @@ function signOutEntirely() {
         </div>
       </template>
 
-      <!-- OAuth consent (explicit-consent providers): confirm access. Submitting
-           the empty form advances the flow, which redirects back to the app. -->
+      <!-- Consent stage: authentik's generic "confirm to proceed" step. Used for
+           OAuth explicit-consent providers (default copy + requested permissions)
+           and, with a `consentText` override, as the enrollment confirmation.
+           Submitting echoes back the challenge `token` (see onSubmit) to advance. -->
       <template v-else-if="component === 'ak-stage-consent'">
-        <p class="text-sm text-slate-600">
-          <span class="font-medium">{{ challenge.flow_info?.title || 'An application' }}</span>
-          is requesting access to your IETF account.
-        </p>
-        <ul
-          v-if="challenge.permissions?.length"
-          class="list-disc space-y-1 pl-5 text-sm text-slate-600"
-        >
-          <li v-for="perm in challenge.permissions" :key="perm.id">{{ perm.name }}</li>
-        </ul>
+        <p v-if="consentText" class="text-sm text-slate-600">{{ consentText }}</p>
+        <template v-else>
+          <p class="text-sm text-slate-600">
+            <span class="font-medium">{{ challenge.flow_info?.title || 'An application' }}</span>
+            is requesting access to your IETF account.
+          </p>
+          <ul
+            v-if="challenge.permissions?.length"
+            class="list-disc space-y-1 pl-5 text-sm text-slate-600"
+          >
+            <li v-for="perm in challenge.permissions" :key="perm.id">{{ perm.name }}</li>
+          </ul>
+        </template>
       </template>
 
       <!-- TOTP enrollment: scan the QR (or enter the secret), then confirm a code -->
