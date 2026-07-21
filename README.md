@@ -337,13 +337,15 @@ them up:
   logout (a `user_logout` stage). This is also driven in-app, by
   [`signed-out.vue`](frontend/pages/signed-out.vue): FlowExecutor GETs the executor,
   authentik ends the session, the flow completes immediately, and the page clears
-  the local session record and shows a confirmation. All three sign-out entry
-  points funnel through it: the account shell's "Sign out"
-  ([`layouts/account.vue`](frontend/layouts/account.vue)), the session-end
-  screen's "Sign out of IETF Account entirely" button, and — via **Rule 5** — any
-  direct hit to `/if/flow/ietf-invalidation/`. (authentik still hands its URL back
-  as `invalidation_flow_url` on the session-end challenge; the button ignores that
-  in favour of the in-app page, which drives the same flow by config.)
+  the local session record. All three sign-out entry points funnel through it: the
+  account shell's "Sign out" ([`layouts/account.vue`](frontend/layouts/account.vue)),
+  the session-end screen's "Sign out of IETF Account entirely" button, and — via
+  **Rule 5** — any direct hit to `/if/flow/ietf-invalidation/`. (authentik still
+  hands its URL back as `invalidation_flow_url` on the session-end challenge; the
+  button ignores that in favour of the in-app page, which drives the same flow by
+  config.) By default the page then shows a "you've been signed out" confirmation;
+  the account shell passes `?redirect=login` to skip it and drop the user straight
+  on the login screen, since signing out from inside the app is deliberate.
 
 The provider-logout (session-end) path **can't be exercised in local dev** —
 verify it against a same-host deployment with a real OAuth client performing an

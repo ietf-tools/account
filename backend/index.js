@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
@@ -59,9 +59,32 @@ await app.register(portraitRoutes, { prefix: `${config.apiPrefix}/portrait` })
 // this same server, so the browser only ever talks to one origin.
 const spaDir = join(__dirname, '..', '.output', 'public')
 await app
-  .register(fastifyStatic, { root: spaDir, wildcard: false })
+  .register(fastifyStatic, {
+    root: spaDir,
+    wildcard: false,
+    // We set Cache-Control ourselves per file (below); let @fastify/static keep
+    // managing ETag/Last-Modified so no-cache responses still revalidate cheaply
+    // with 304s.
+    cacheControl: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.includes(`${sep}_nuxt${sep}`)) {
+        // Fingerprinted bundles: the filename changes when the content does, so
+        // they're safe to cache forever. This is what lets an already-open tab
+        // keep loading the chunks it booted with after a new deploy lands.
+        res.setHeader('cache-control', 'public, max-age=31536000, immutable')
+      } else if (filePath.endsWith('index.html') || filePath.endsWith(`${sep}version.json`)) {
+        // The entry document and the version marker must never be served stale,
+        // or a browser/edge keeps pointing at an old build. Revalidate every time.
+        res.setHeader('cache-control', 'no-cache')
+      } else {
+        // Other, un-fingerprinted root assets (rare): a short TTL, still fresh soon.
+        res.setHeader('cache-control', 'public, max-age=3600')
+      }
+    }
+  })
   .then(() => {
-    // SPA fallback: anything not matched above returns index.html.
+    // SPA fallback: anything not matched above returns index.html. sendFile goes
+    // through the same static instance, so index.html gets the no-cache header too.
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith(config.apiPrefix || '/api')) {
         reply.code(404).send({ error: 'Not found' })

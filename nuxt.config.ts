@@ -1,7 +1,16 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 const appVersion =
   JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')).version || '0.0.0'
+
+// A unique id for THIS build, evaluated once when the config loads (i.e. once per
+// `nuxt generate`). It's baked into the running bundle (runtimeConfig.public) and
+// written to /version.json below. A tab that's been open across a deploy compares
+// the two and offers a reload — see composables/useAppUpdate.js. Using the build
+// time (not the package version) means every deploy is detected, even ones that
+// don't bump the version. Prefer an injected commit SHA when the CI provides one.
+const buildId = process.env.BUILD_ID ?? process.env.GIT_COMMIT_SHA ?? String(Date.now())
 
 // During `nuxt dev` the frontend runs on :3000 and the Fastify backend on :4000.
 // We proxy the API path -> backend so the browser only ever talks to one origin
@@ -80,7 +89,20 @@ export default defineNuxtConfig({
       apiUrl,
       authentikApiUrl,
       flows,
-      appVersion
+      appVersion,
+      buildId
+    }
+  },
+  // Write /version.json into the generated output so the running SPA can poll it
+  // and detect when a newer build has been deployed. It's served no-cache by the
+  // backend (see backend/index.js) — everything else fingerprinted is immutable.
+  hooks: {
+    'nitro:build:public-assets': (nitro) => {
+      const publicDir = nitro.options.output.publicDir
+      writeFileSync(
+        join(publicDir, 'version.json'),
+        JSON.stringify({ version: appVersion, buildId })
+      )
     }
   },
   css: ['~/assets/css/main.css'],

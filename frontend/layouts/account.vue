@@ -77,7 +77,9 @@ const initial = computed(() => {
 function onLogout() {
   // The /signed-out page drives the invalidation (logout) flow in our own UI and
   // clears the session record on completion — one place owns the sign-out UX.
-  router.push('/signed-out')
+  // `redirect=login` skips its "you've been signed out" confirmation and drops the
+  // user straight on the login screen, since signing out from here is deliberate.
+  router.push('/signed-out?redirect=login')
 }
 
 // Easter egg: clicking the sidebar avatar rains confetti from where you clicked.
