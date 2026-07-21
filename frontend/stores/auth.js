@@ -25,10 +25,12 @@ export const useAuthStore = defineStore('auth', () => {
     ready.value = true
   }
 
-  // End the authentik session by running its invalidation flow directly.
+  // End the authentik session by running its (brand default) invalidation flow
+  // directly. Slug is configurable like the other flows (AUTHENTIK_FLOW_INVALIDATION).
   async function logout() {
     const ak = useAuthentik()
-    await ak('/flows/executor/default-invalidation-flow/?query=').catch(() => {})
+    const slug = useRuntimeConfig().public.flows.invalidation
+    await ak(`/flows/executor/${slug}/?query=`).catch(() => {})
     user.value = null
   }
 

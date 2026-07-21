@@ -198,6 +198,9 @@ custom front-end instead of ever seeing authentik's stock UI:
 - Rule 3 handles **third-party OAuth logins**: when another app sends the user to
   authentik to sign in, authentik would otherwise render its own login UI at
   `/if/flow/ietf-login/` (see "Third-party OAuth logins" below).
+- Rule 4 handles **third-party OAuth logouts**: when an app logs the user out,
+  authentik would otherwise render its stock session-end screen at
+  `/if/flow/ietf-provider-invalidation-flow/` (see "Third-party OAuth logouts").
 
 All live in the **Cloudflare dashboard** (Rules → Redirect Rules), not in this
 repo — the Worker deliberately stays a plain assets-only deploy. They're
@@ -208,10 +211,12 @@ documented here so they aren't lost tribal knowledge.
 | 1 | root → `/app/` | `http.request.uri.path eq "/"` | Someone landing on the bare domain root |
 | 2 | `/if/user*` → `/app/` | `starts_with(http.request.uri.path, "/if/user")` | authentik dropping the user on its own UI post-login / post-social when no `next` was carried |
 | 3 | `/if/flow/ietf-login/` → `/app/login` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-login/"` | A third-party app's OAuth login landing on authentik's stock flow UI |
+| 4 | `/if/flow/ietf-provider-invalidation/` → `/app/logout` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-provider-invalidation/"` | A third-party app's OAuth logout landing on authentik's stock session-end screen |
 
-Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rule 3 must
-**preserve the OAuth querystring**, so make it a *dynamic* redirect:
-`concat("https://account.ietf.org/app/login?", http.request.uri.query)` (302).
+Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3 & 4
+must **preserve the OAuth querystring**, so make them *dynamic* redirects:
+`concat("https://account.ietf.org/app/login?", http.request.uri.query)` and
+`concat("https://account.ietf.org/app/logout?", http.request.uri.query)` (302).
 
 **Rule 1 must match the root exactly** (`eq "/"`, not `starts_with`) — a prefix
 match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/*`
@@ -223,12 +228,14 @@ Worker an `/if/*` route would collide with authentik, which needs the rest of
 render in. So do **not** blanket-redirect `/if/flow/*`, `/source/*`, `/flows/*`,
 `/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
 
-**Rule 3 is the scoped exception** to that `/if/flow/*` warning: it matches the
-authentication flow slug *exactly* (`/if/flow/ietf-login/`), so it leaves every
-other flow — social-source returns, recovery-email links, MFA setup — rendering
-in authentik. Keep it exact; if you point a social source at the *same*
-`ietf-login` flow and it needs an interactive stage on return, it will also route
-here (the SPA resumes it, which generally works, but is the one overlap to watch).
+**Rules 3 & 4 are the scoped exceptions** to that `/if/flow/*` warning: each
+matches a single flow slug *exactly* (`/if/flow/ietf-login/`,
+`/if/flow/ietf-provider-invalidation/`), so they leave every other flow —
+social-source returns, recovery-email links, MFA setup, and the brand's default
+invalidation flow — rendering in authentik. Keep them exact; if you point a social
+source at the *same* `ietf-login` flow and it needs an interactive stage on
+return, it will also route here (the SPA resumes it, which generally works, but is
+the one overlap to watch).
 
 ### Third-party OAuth logins
 
@@ -250,6 +257,30 @@ mode**:
 Explicit-consent providers add an `ak-stage-consent` stage, which FlowExecutor
 renders. This path **can't be exercised in local dev** (authentik is remote), so
 verify it against a same-host deployment with a real OAuth client.
+
+### Third-party OAuth logouts
+
+The mirror image of login. A provider can have an **invalidation flow** that runs
+when an app logs the user out. We use **two** flows for this, and it's easy to mix
+them up:
+
+- **`ietf-provider-invalidation`** — set as the OAuth provider's *Invalidation
+  flow*. When an app logs the user out, authentik builds a plan bound to that app
+  and 302s to `/if/flow/ietf-provider-invalidation/…`. The flow ends on an
+  **`ak-stage-session-end`** challenge (the "you've been signed out of *app*"
+  screen with return / log-back-in / sign-out-entirely options) — *not* a terminal
+  redirect. Rule 4 intercepts it to `/app/logout`, where
+  [`logout.vue`](frontend/pages/logout.vue) drives the executor **in resume mode**
+  (like the login path — cancelling would drop the app context) and
+  [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) renders the stage. It
+  must contain no `user_logout` stage, or the session ends before the screen shows.
+- **`ietf-invalidation`** — the brand's *default invalidation flow*: the real
+  logout (a `user_logout` stage). The SPA never drives this directly; authentik
+  hands its URL back as `invalidation_flow_url` on the session-end challenge, and
+  the "Sign out of IETF Account entirely" button navigates there full-page.
+
+Like the login path, this **can't be exercised in local dev** — verify against a
+same-host deployment with a real OAuth client performing an RP-initiated logout.
 
 > The root redirect (rule 1) *could* instead be a `main` Worker script owning an
 > exact `account.ietf.org/` route, which would version-control it in this repo.

@@ -330,6 +330,32 @@ function continueWithSource(source) {
   url.searchParams.set('next', back.toString())
   window.location.href = url.toString()
 }
+
+// --- Session end (provider invalidation) ---------------------------------
+// ak-stage-session-end is the terminal-but-interactive "you've been signed out
+// of <app>" screen an app's invalidation flow ends on. Unlike other stages we
+// never POST back to the executor — each option is a navigation:
+//   returnToApplications — stay signed into IETF Account, back to our app list
+//     (client-side; the default provider invalidation flow does NOT end the
+//     authentik session, so the user is still authenticated).
+//   backToApplication — full-page to the app's launch URL, re-entering it.
+//   signOutEntirely — full-page to the brand's default invalidation flow (the
+//     real logout, user_logout stage), whose URL authentik hands us here.
+function returnToApplications() {
+  return navigateTo('/account/applications')
+}
+function backToApplication() {
+  const url = challenge.value?.application_launch_url
+  if (url) {
+    window.location.assign(url)
+  }
+}
+function signOutEntirely() {
+  const url = challenge.value?.invalidation_flow_url
+  if (url) {
+    window.location.assign(url)
+  }
+}
 </script>
 
 <template>
@@ -590,6 +616,38 @@ function continueWithSource(source) {
         </div>
       </template>
 
+      <!-- Session end: the "you've been signed out of <app>" screen an app's
+           provider invalidation flow ends on. No submit — each option navigates
+           (see returnToApplications / backToApplication / signOutEntirely). -->
+      <template v-else-if="component === 'ak-stage-session-end'">
+        <div class="space-y-4">
+          <p class="text-sm text-slate-600">
+            You've been signed out of
+            <span class="font-medium">{{ challenge.application_name || 'the application' }}</span>.
+            What would you like to do next?
+          </p>
+          <button
+            v-if="challenge.application_launch_url"
+            type="button"
+            class="btn-primary"
+            @click="backToApplication"
+          >
+            Sign back into {{ challenge.application_name || 'the application' }}
+          </button>
+          <button type="button" class="btn-social w-full justify-center" @click="returnToApplications">
+            Return to your applications
+          </button>
+          <button
+            v-if="challenge.invalidation_flow_url"
+            type="button"
+            class="link block w-full text-center text-sm"
+            @click="signOutEntirely"
+          >
+            Sign out of IETF Account entirely
+          </button>
+        </div>
+      </template>
+
       <!-- Anything we haven't styled yet: surface it so it's never a dead end. -->
       <template v-else>
         <p class="text-sm text-slate-600">
@@ -599,7 +657,7 @@ function continueWithSource(source) {
       </template>
 
       <button
-        v-if="component !== 'ak-stage-email' && component !== 'ak-stage-access-denied' && !(component === 'ak-stage-authenticator-validate' && !selectedDevice)"
+        v-if="component !== 'ak-stage-email' && component !== 'ak-stage-access-denied' && component !== 'ak-stage-session-end' && !(component === 'ak-stage-authenticator-validate' && !selectedDevice)"
         type="submit"
         class="btn-primary"
         :disabled="loading"

@@ -28,11 +28,24 @@ const authentikApiUrl = process.env.NUXT_PUBLIC_AUTHENTIK_API_URL ?? '/api/v3'
 // Flow slugs the SPA drives directly. Same env vars the backend used to read, so
 // there's one source of truth; these are the authentik defaults.
 const flows = {
-  authentication: process.env.AUTHENTIK_FLOW_AUTHENTICATION ?? 'default-authentication-flow',
-  enrollment: process.env.AUTHENTIK_FLOW_ENROLLMENT ?? 'default-enrollment-flow',
-  recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'default-recovery-flow',
-  userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'default-user-settings-flow',
-  passwordChange: process.env.AUTHENTIK_FLOW_PASSWORD_CHANGE ?? 'default-password-change',
+  authentication: process.env.AUTHENTIK_FLOW_AUTHENTICATION ?? 'ietf-login',
+  enrollment: process.env.AUTHENTIK_FLOW_ENROLLMENT ?? 'ietf-enrollment',
+  recovery: process.env.AUTHENTIK_FLOW_RECOVERY ?? 'ietf-recovery',
+  // Brand default invalidation flow: the actual logout (a user_logout stage). The
+  // account shell drives this to sign the user out of authentik (see auth store's
+  // logout()). This is the flow whose URL authentik hands back as
+  // invalidation_flow_url on the provider session-end screen below.
+  invalidation: process.env.AUTHENTIK_FLOW_INVALIDATION ?? 'ietf-invalidation',
+  // Provider invalidation flow: the one authentik runs when an app logs the user
+  // out (its slug is set as a provider's "Invalidation flow"). It ends on an
+  // ak-stage-session-end challenge — the "you've been signed out of <app>" screen
+  // with options to return, log back in, or fully sign out. The SPA drives this
+  // one (see logout.vue). NOT to be confused with the brand's default invalidation
+  // flow (the actual logout), whose URL authentik hands back on that challenge.
+  providerInvalidation:
+    process.env.AUTHENTIK_FLOW_PROVIDER_INVALIDATION ?? 'ietf-provider-invalidation',
+  userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'ietf-user-settings',
+  passwordChange: process.env.AUTHENTIK_FLOW_PASSWORD_CHANGE ?? 'ietf-password-change',
   // Authenticator (MFA) enrollment flows, one per device type.
   totpSetup: process.env.AUTHENTIK_FLOW_TOTP_SETUP ?? 'default-authenticator-totp-setup',
   webauthnSetup: process.env.AUTHENTIK_FLOW_WEBAUTHN_SETUP ?? 'default-authenticator-webauthn-setup',
