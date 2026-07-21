@@ -38,6 +38,13 @@ const flows = {
   // /if/flow/ietf-social-callback/ — a Cloudflare rule sends that to
   // /app/social-callback, where the SPA drives it (see social-callback.vue).
   socialCallback: process.env.AUTHENTIK_FLOW_SOCIAL_CALLBACK ?? 'ietf-social-callback',
+  // Source enrollment flow: what authentik runs to CREATE the account the first
+  // time a user returns from a social source. It has no interactive prompt, so
+  // authentik would just flash its own UI at /if/flow/ietf-social-enrollment/
+  // before redirecting — a Cloudflare rule sends that to /app/social-enrollment,
+  // where the SPA shows a "finalizing" screen while the flow completes (see
+  // social-enrollment.vue).
+  socialEnrollment: process.env.AUTHENTIK_FLOW_SOCIAL_ENROLLMENT ?? 'ietf-social-enrollment',
   // Brand default invalidation flow: the actual logout (a user_logout stage). The
   // account shell drives this to sign the user out of authentik (see auth store's
   // logout()). This is the flow whose URL authentik hands back as

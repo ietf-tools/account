@@ -87,6 +87,14 @@ built the plan — cancelling would drop the in-progress login). On completion t
 flow redirects to its `next` (`/app/login?social=return`), so it rejoins the
 finalize path above; if there's no `next`, the page resolves the user itself.
 
+**First-time sign-ups.** A brand-new user's return additionally runs the source
+*enrollment* flow (`ietf-social-enrollment`) to create the account. It's
+non-interactive (no prompt), so instead of the generic challenge renderer,
+**Rule 7** sends `/if/flow/ietf-social-enrollment/` to `/app/social-enrollment`,
+where [`social-enrollment.vue`](frontend/pages/social-enrollment.vue) shows a
+"Finalizing your account creation" screen while it resumes the plan and follows
+the terminal redirect back to `next` — again rejoining the finalize path.
+
 > This shared-host assumption is what makes the hand-off work. In local dev
 > (frontend on `localhost:3000`, authentik remote) the cross-site session cookie
 > won't stick, so exercise social login (and its interactive callback) against a
@@ -227,13 +235,13 @@ documented here so they aren't lost tribal knowledge.
 | 4 | `/if/flow/ietf-provider-invalidation/` → `/app/logout` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-provider-invalidation/"` | A third-party app's OAuth logout landing on authentik's stock session-end screen |
 | 5 | `/if/flow/ietf-invalidation/` → `/app/signed-out` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-invalidation/"` | A sign-out landing on authentik's stock logout view |
 | 6 | `/if/flow/ietf-social-callback/` → `/app/social-callback` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-social-callback/"` | An interactive social-login return landing on authentik's stock flow UI |
+| 7 | `/if/flow/ietf-social-enrollment/` → `/app/social-enrollment` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-social-enrollment/"` | A first-time social sign-up landing on authentik's stock flow UI |
 
-Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–6
-must **preserve the querystring**, so make them *dynamic* redirects:
-`concat("https://account.ietf.org/app/login?", http.request.uri.query)`,
-`concat("https://account.ietf.org/app/logout?", http.request.uri.query)`,
-`concat("https://account.ietf.org/app/signed-out?", http.request.uri.query)`, and
-`concat("https://account.ietf.org/app/social-callback?", http.request.uri.query)` (302).
+Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–7
+must **preserve the querystring**, so make them *dynamic* redirects — e.g.
+`concat("https://account.ietf.org/app/login?", http.request.uri.query)` for rule 3
+and the matching `/app/{logout,signed-out,social-callback,social-enrollment}?…`
+targets for rules 4–7 (302).
 
 **Rule 1 must match the root exactly** (`eq "/"`, not `starts_with`) — a prefix
 match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/*`
@@ -245,13 +253,13 @@ Worker an `/if/*` route would collide with authentik, which needs the rest of
 render in. So do **not** blanket-redirect `/if/flow/*`, `/source/*`, `/flows/*`,
 `/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
 
-**Rules 3–6 are the scoped exceptions** to that `/if/flow/*` warning: each matches
+**Rules 3–7 are the scoped exceptions** to that `/if/flow/*` warning: each matches
 a single flow slug *exactly* (`/if/flow/ietf-login/`,
 `/if/flow/ietf-provider-invalidation/`, `/if/flow/ietf-invalidation/`,
-`/if/flow/ietf-social-callback/`), so they leave every other flow —
-recovery-email links, MFA setup, admin flows — rendering in authentik. Keep them
-exact; a slug that both a rule and another purpose share will route here for both,
-so give each intercepted flow its own dedicated slug.
+`/if/flow/ietf-social-callback/`, `/if/flow/ietf-social-enrollment/`), so they
+leave every other flow — recovery-email links, MFA setup, admin flows — rendering
+in authentik. Keep them exact; a slug that both a rule and another purpose share
+will route here for both, so give each intercepted flow its own dedicated slug.
 
 ### Third-party OAuth logins
 
