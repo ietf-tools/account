@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 
-import { getUser, patchUser, AuthentikError } from '../lib/authentik.js'
+import { getUser, patchUser, clientFromRequest, AuthentikError } from '../lib/authentik.js'
 import { storageConfigured, putImage, deleteObject, keyFromUrl } from '../lib/storage.js'
 import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imageUpload.js'
 
@@ -42,7 +42,7 @@ export default async function portraitRoutes(app) {
       return
     }
     try {
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, clientFromRequest(request))
       return { portrait: full.attributes?.portrait || null }
     } catch (err) {
       if (err instanceof AuthentikError) {
@@ -80,12 +80,13 @@ export default async function portraitRoutes(app) {
       return reply.badRequest("That file couldn't be read as an image")
     }
 
+    const client = clientFromRequest(request)
     try {
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, client)
       const previousKey = keyFromUrl(full.attributes?.portrait)
 
       const { key, url } = await putImage(session.pk, 'portrait', webp, shortHash(webp))
-      await patchUser(session.pk, { attributes: { ...full.attributes, portrait: url } })
+      await patchUser(session.pk, { attributes: { ...full.attributes, portrait: url } }, client)
 
       if (previousKey && previousKey !== key) {
         await deleteObject(previousKey)
@@ -105,13 +106,14 @@ export default async function portraitRoutes(app) {
     if (!session) {
       return
     }
+    const client = clientFromRequest(request)
     try {
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, client)
       const previousKey = keyFromUrl(full.attributes?.portrait)
 
       const attributes = { ...full.attributes }
       delete attributes.portrait
-      await patchUser(session.pk, { attributes })
+      await patchUser(session.pk, { attributes }, client)
 
       if (previousKey) {
         await deleteObject(previousKey)

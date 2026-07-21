@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 
-import { getUser, patchUser, AuthentikError } from '../lib/authentik.js'
+import { getUser, patchUser, clientFromRequest, AuthentikError } from '../lib/authentik.js'
 import { gravatarUrl } from '../lib/gravatar.js'
 import { storageConfigured, putImage, deleteObject, keyFromUrl } from '../lib/storage.js'
 import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imageUpload.js'
@@ -112,7 +112,7 @@ export default async function avatarRoutes(app) {
       return
     }
     try {
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, clientFromRequest(request))
       const custom = full.attributes?.avatar || null
       const isInitials = typeof custom === 'string' && custom.startsWith(INITIALS_PREFIX)
       return {
@@ -159,14 +159,15 @@ export default async function avatarRoutes(app) {
       return reply.badRequest("That file couldn't be read as an image")
     }
 
+    const client = clientFromRequest(request)
     try {
       // Read current attributes (me/ omits them) so the PATCH preserves the rest,
       // and so we can clean up the object the previous URL pointed at.
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, client)
       const previousKey = keyFromUrl(full.attributes?.avatar)
 
       const { key, url } = await putImage(session.pk, 'avatar', webp, shortHash(webp))
-      await patchUser(session.pk, { attributes: { ...full.attributes, avatar: url } })
+      await patchUser(session.pk, { attributes: { ...full.attributes, avatar: url } }, client)
 
       // Remove the superseded object (skip if the content was identical → same key).
       if (previousKey && previousKey !== key) {
@@ -188,13 +189,14 @@ export default async function avatarRoutes(app) {
     if (!session) {
       return
     }
+    const client = clientFromRequest(request)
     try {
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, client)
       const previousKey = keyFromUrl(full.attributes?.avatar)
 
       const attributes = { ...full.attributes }
       delete attributes.avatar
-      await patchUser(session.pk, { attributes })
+      await patchUser(session.pk, { attributes }, client)
 
       if (previousKey) {
         await deleteObject(previousKey)
@@ -216,12 +218,13 @@ export default async function avatarRoutes(app) {
     if (!session) {
       return
     }
+    const client = clientFromRequest(request)
     try {
-      const full = await getUser(session.pk)
+      const full = await getUser(session.pk, client)
       const previousKey = keyFromUrl(full.attributes?.avatar)
 
       const avatar = initialsDataUri(full)
-      await patchUser(session.pk, { attributes: { ...full.attributes, avatar } })
+      await patchUser(session.pk, { attributes: { ...full.attributes, avatar } }, client)
 
       if (previousKey) {
         await deleteObject(previousKey)

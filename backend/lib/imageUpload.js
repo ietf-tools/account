@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { resolveSessionUser, AuthentikError } from './authentik.js'
+import { resolveSessionUser, clientFromRequest, AuthentikError } from './authentik.js'
 
 /**
  * Shared helpers for the image-upload routes (avatar + portrait). They differ in
@@ -35,7 +35,7 @@ export function shortHash(buffer) {
 export async function requireUser(request, reply) {
   let user = null
   try {
-    user = await resolveSessionUser(request.headers.cookie)
+    user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
   } catch (err) {
     if (err instanceof AuthentikError) {
       reply.code(err.status ?? 502).send({ error: err.message })

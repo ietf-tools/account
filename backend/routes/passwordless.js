@@ -4,6 +4,7 @@ import {
   resolveSessionUser,
   userApiGet,
   setUserPassword,
+  clientFromRequest,
   AuthentikError
 } from '../lib/authentik.js'
 
@@ -30,7 +31,7 @@ export default async function passwordlessRoutes(app) {
   async function requireCaller(request, reply) {
     let user = null
     try {
-      user = await resolveSessionUser(request.headers.cookie)
+      user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
     } catch (err) {
       if (err instanceof AuthentikError) {
         reply.code(err.status ?? 502).send({ error: err.message })
@@ -47,14 +48,15 @@ export default async function passwordlessRoutes(app) {
 
   // What passwordless sign-in methods does the caller have? We replay their own
   // cookie so these are owner-scoped exactly as their own account pages see them.
-  async function passwordlessMethods(cookieHeader, user) {
+  async function passwordlessMethods(cookieHeader, user, client) {
     const [devicesBody, connsBody] = await Promise.all([
-      userApiGet(cookieHeader, '/authenticators/all/').catch(() => null),
+      userApiGet(cookieHeader, '/authenticators/all/', client).catch(() => null),
       userApiGet(
         cookieHeader,
         `/sources/user_connections/all/?page_size=100${
           user.pk != null ? `&user=${encodeURIComponent(user.pk)}` : ''
-        }`
+        }`,
+        client
       ).catch(() => null)
     ])
 
@@ -83,7 +85,11 @@ export default async function passwordlessRoutes(app) {
       return
     }
     try {
-      const { hasPasskey, hasSocial } = await passwordlessMethods(request.headers.cookie, user)
+      const { hasPasskey, hasSocial } = await passwordlessMethods(
+        request.headers.cookie,
+        user,
+        clientFromRequest(request)
+      )
       return { hasPasskey, hasSocial, canRemove: hasPasskey || hasSocial }
     } catch (err) {
       if (err instanceof AuthentikError) {
@@ -100,8 +106,13 @@ export default async function passwordlessRoutes(app) {
     if (!user) {
       return
     }
+    const client = clientFromRequest(request)
     try {
-      const { hasPasskey, hasSocial } = await passwordlessMethods(request.headers.cookie, user)
+      const { hasPasskey, hasSocial } = await passwordlessMethods(
+        request.headers.cookie,
+        user,
+        client
+      )
       if (!hasPasskey && !hasSocial) {
         return reply.badRequest(
           'Add a passkey or connect a social login before removing your password.'
@@ -109,7 +120,7 @@ export default async function passwordlessRoutes(app) {
       }
       // Blank the known password (see the file header for why it's a random value
       // rather than a true unusable password).
-      await setUserPassword(user.pk, randomBytes(48).toString('base64url'))
+      await setUserPassword(user.pk, randomBytes(48).toString('base64url'), client)
       request.log.info({ pk: user.pk, username: user.username }, 'passwordless: password removed')
       return { removed: true }
     } catch (err) {

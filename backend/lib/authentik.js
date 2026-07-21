@@ -13,6 +13,34 @@ import { config } from './config.js'
 
 const API = `${config.authentik.url}/api/v3`
 
+// Build the headers that make a server-side call carry the *end user's* client
+// identity (their browser IP + User-Agent) instead of the backend's. Two reasons:
+//   1. authentik logs events against the real client, not the app server.
+//   2. authentik's session-binding sees a consistent origin — without this, a
+//      replay of the user's session cookie from the backend's IP/UA looks like a
+//      hijack and can terminate the session (the avatar/portrait bug).
+// authentik only trusts the forwarded IP when the backend's own IP is a trusted
+// proxy (AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS); the User-Agent needs no trust.
+// No-ops for any field we don't have.
+function clientHeaders(client) {
+  const headers = {}
+  if (client?.ip) {
+    headers['X-Forwarded-For'] = client.ip
+  }
+  if (client?.userAgent) {
+    headers['User-Agent'] = client.userAgent
+  }
+  return headers
+}
+
+// Pull the acting browser's client identity off a Fastify request, to forward to
+// authentik (see clientHeaders). `request.ip` is the real client IP only because
+// the backend runs with `trustProxy` in production (see backend/index.js); in dev
+// it's the socket peer, which is the best we have and harmless.
+export function clientFromRequest(request) {
+  return { ip: request?.ip, userAgent: request?.headers?.['user-agent'] }
+}
+
 // Wrap fetch so a network/DNS failure surfaces as a clean 502 rather than a
 // raw "fetch failed" 500.
 async function doFetch(url, options) {
@@ -27,7 +55,7 @@ async function doFetch(url, options) {
 
 // ── Admin API (service-account token) ────────────────────────────────────────
 
-async function adminFetch(path, options = {}) {
+async function adminFetch(path, options = {}, client) {
   if (!config.authentik.apiToken) {
     throw new AuthentikError('AUTHENTIK_API_TOKEN is not configured', 500)
   }
@@ -37,6 +65,9 @@ async function adminFetch(path, options = {}) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.authentik.apiToken}`,
+      // Attribute the resulting authentik event to the acting user's browser, not
+      // the app server. Caller headers still win.
+      ...clientHeaders(client),
       ...options.headers
     }
   })
@@ -89,28 +120,39 @@ export async function createUser({ username, email, name, attributes = {} }) {
   })
 }
 
-export async function setUserPassword(userPk, password) {
-  await adminFetch(`/core/users/${userPk}/set_password/`, {
-    method: 'POST',
-    body: JSON.stringify({ password })
-  })
+// `client` (optional) forwards the acting user's IP/User-Agent so the password
+// change is logged against them — see clientHeaders.
+export async function setUserPassword(userPk, password, client) {
+  await adminFetch(
+    `/core/users/${userPk}/set_password/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    },
+    client
+  )
 }
 
 // Full admin view of a user, including `attributes` (the self serializer at
 // /core/users/me/ omits them, so a PATCH that wants to preserve other attributes
-// must read them from here first).
-export async function getUser(userPk) {
-  return adminFetch(`/core/users/${userPk}/`)
+// must read them from here first). `client` (optional): see clientHeaders.
+export async function getUser(userPk, client) {
+  return adminFetch(`/core/users/${userPk}/`, undefined, client)
 }
 
 // Partial update of a user. Note authentik REPLACES the `attributes` object
 // wholesale on PATCH (it's a JSON field, not deep-merged) — callers that touch
-// attributes must pass the full merged object.
-export async function patchUser(userPk, body) {
-  return adminFetch(`/core/users/${userPk}/`, {
-    method: 'PATCH',
-    body: JSON.stringify(body)
-  })
+// attributes must pass the full merged object. `client` (optional): see
+// clientHeaders.
+export async function patchUser(userPk, body, client) {
+  return adminFetch(
+    `/core/users/${userPk}/`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(body)
+    },
+    client
+  )
 }
 
 // ── Session identity (the browser's own authentik cookie, NOT the admin token) ──
@@ -121,14 +163,17 @@ export async function patchUser(userPk, body) {
 // a pk sent from the browser, only the one authentik derives from its cookie.
 // Returns the authentik user object, or null if the cookie resolves to an
 // anonymous / absent session.
-export async function resolveSessionUser(cookieHeader) {
+export async function resolveSessionUser(cookieHeader, client) {
   if (!cookieHeader) {
     return null
   }
   const response = await doFetch(`${API}/core/users/me/`, {
     headers: {
       Accept: 'application/json',
-      Cookie: cookieHeader
+      Cookie: cookieHeader,
+      // Replay the user's own IP/UA so authentik's session binding sees the same
+      // client that created the session, not the backend — see clientHeaders.
+      ...clientHeaders(client)
     },
     // An unrecognised/expired session can bounce to authentik's HTML login flow;
     // don't follow that into an HTML page — treat a redirect as "no session".
@@ -166,14 +211,17 @@ export async function resolveSessionUser(cookieHeader) {
 // show *this* user" — used to check whether the caller has a passkey / social
 // login before we let them drop their password. Throws AuthentikError on a
 // non-OK or non-JSON response.
-export async function userApiGet(cookieHeader, path) {
+export async function userApiGet(cookieHeader, path, client) {
   if (!cookieHeader) {
     throw new AuthentikError('Not authenticated', 401)
   }
   const response = await doFetch(`${API}${path}`, {
     headers: {
       Accept: 'application/json',
-      Cookie: cookieHeader
+      Cookie: cookieHeader,
+      // As in resolveSessionUser: replay the user's own IP/UA so session binding
+      // sees a consistent client — see clientHeaders.
+      ...clientHeaders(client)
     },
     // As in resolveSessionUser: an invalid session can 302 to authentik's HTML
     // login flow — don't follow that into a non-JSON page.
