@@ -75,9 +75,22 @@ cookie right where the browser already is. On return, [`login.vue`](frontend/pag
 simply calls `/core/users/me/`; the cookie is already present, so there's nothing
 to finalize server-side.
 
+**Interactive returns.** After the provider round-trip authentik runs the source's
+callback flow (`ietf-social-callback`). Most of the time it finishes
+non-interactively and redirects straight to the `next` above — but a first-time
+sign-in (enrollment), account linking, or a missing required attribute makes it
+render an interactive stage, which authentik would show in its own UI at
+`/if/flow/ietf-social-callback/`. **Rule 6** intercepts that to
+`/app/social-callback`, where [`social-callback.vue`](frontend/pages/social-callback.vue)
+drives the flow through `FlowExecutor` **in resume mode** (the source callback
+built the plan — cancelling would drop the in-progress login). On completion the
+flow redirects to its `next` (`/app/login?social=return`), so it rejoins the
+finalize path above; if there's no `next`, the page resolves the user itself.
+
 > This shared-host assumption is what makes the hand-off work. In local dev
 > (frontend on `localhost:3000`, authentik remote) the cross-site session cookie
-> won't stick, so exercise social login against a same-host deployment.
+> won't stick, so exercise social login (and its interactive callback) against a
+> same-host deployment.
 
 ## Project layout
 
@@ -213,12 +226,14 @@ documented here so they aren't lost tribal knowledge.
 | 3 | `/if/flow/ietf-login/` → `/app/login` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-login/"` | A third-party app's OAuth login landing on authentik's stock flow UI |
 | 4 | `/if/flow/ietf-provider-invalidation/` → `/app/logout` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-provider-invalidation/"` | A third-party app's OAuth logout landing on authentik's stock session-end screen |
 | 5 | `/if/flow/ietf-invalidation/` → `/app/signed-out` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-invalidation/"` | A sign-out landing on authentik's stock logout view |
+| 6 | `/if/flow/ietf-social-callback/` → `/app/social-callback` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-social-callback/"` | An interactive social-login return landing on authentik's stock flow UI |
 
-Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3, 4 &
-5 must **preserve the querystring**, so make them *dynamic* redirects:
+Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–6
+must **preserve the querystring**, so make them *dynamic* redirects:
 `concat("https://account.ietf.org/app/login?", http.request.uri.query)`,
-`concat("https://account.ietf.org/app/logout?", http.request.uri.query)`, and
-`concat("https://account.ietf.org/app/signed-out?", http.request.uri.query)` (302).
+`concat("https://account.ietf.org/app/logout?", http.request.uri.query)`,
+`concat("https://account.ietf.org/app/signed-out?", http.request.uri.query)`, and
+`concat("https://account.ietf.org/app/social-callback?", http.request.uri.query)` (302).
 
 **Rule 1 must match the root exactly** (`eq "/"`, not `starts_with`) — a prefix
 match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/*`
@@ -230,14 +245,13 @@ Worker an `/if/*` route would collide with authentik, which needs the rest of
 render in. So do **not** blanket-redirect `/if/flow/*`, `/source/*`, `/flows/*`,
 `/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
 
-**Rules 3, 4 & 5 are the scoped exceptions** to that `/if/flow/*` warning: each
-matches a single flow slug *exactly* (`/if/flow/ietf-login/`,
-`/if/flow/ietf-provider-invalidation/`, `/if/flow/ietf-invalidation/`), so they
-leave every other flow — social-source returns, recovery-email links, MFA setup —
-rendering in authentik. Keep them exact; if you point a social source at the
-*same* `ietf-login` flow and it needs an interactive stage on return, it will also
-route here (the SPA resumes it, which generally works, but is the one overlap to
-watch).
+**Rules 3–6 are the scoped exceptions** to that `/if/flow/*` warning: each matches
+a single flow slug *exactly* (`/if/flow/ietf-login/`,
+`/if/flow/ietf-provider-invalidation/`, `/if/flow/ietf-invalidation/`,
+`/if/flow/ietf-social-callback/`), so they leave every other flow —
+recovery-email links, MFA setup, admin flows — rendering in authentik. Keep them
+exact; a slug that both a rule and another purpose share will route here for both,
+so give each intercepted flow its own dedicated slug.
 
 ### Third-party OAuth logins
 
