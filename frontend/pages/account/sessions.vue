@@ -94,18 +94,7 @@ onMounted(load)
         :key="session.uuid"
         class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
       >
-        <span
-          aria-hidden="true"
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"
-            />
-          </svg>
-        </span>
+        <OsIcon :os="session.os" />
 
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">

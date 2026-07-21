@@ -160,6 +160,42 @@ export async function resolveSessionUser(cookieHeader) {
   return user
 }
 
+// Replay the caller's own authentik session cookie to a read-only API path and
+// return the parsed JSON. Unlike adminFetch (service-account, sees everything)
+// this is owner-scoped exactly as the SPA is: it answers "what does authentik
+// show *this* user" — used to check whether the caller has a passkey / social
+// login before we let them drop their password. Throws AuthentikError on a
+// non-OK or non-JSON response.
+export async function userApiGet(cookieHeader, path) {
+  if (!cookieHeader) {
+    throw new AuthentikError('Not authenticated', 401)
+  }
+  const response = await doFetch(`${API}${path}`, {
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookieHeader
+    },
+    // As in resolveSessionUser: an invalid session can 302 to authentik's HTML
+    // login flow — don't follow that into a non-JSON page.
+    redirect: 'manual'
+  })
+  const text = await response.text()
+  let body = null
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    body = null
+  }
+  if (!response.ok || body == null) {
+    throw new AuthentikError(
+      body?.detail || `authentik API error (HTTP ${response.status})`,
+      response.ok ? 502 : response.status,
+      body
+    )
+  }
+  return body
+}
+
 // ── Errors ───────────────────────────────────────────────────────────────────
 
 export class AuthentikError extends Error {
