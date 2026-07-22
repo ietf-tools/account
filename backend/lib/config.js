@@ -37,9 +37,31 @@ export const config = {
   authentik: {
     // Normalise: strip any trailing slash so we can join paths safely.
     url: required('AUTHENTIK_URL').replace(/\/+$/, ''),
-    // Service-account token — used only by backend features (legacy migration).
-    // Flow slugs live in the frontend now (the SPA drives flows directly).
+    // Service-account token — used by backend features (legacy migration,
+    // verified email change). Flow slugs live in the frontend (the SPA drives
+    // flows directly).
     apiToken: process.env.AUTHENTIK_API_TOKEN ?? ''
+  },
+
+  // Absolute base URL of the SPA, used to build links in emails the backend
+  // sends (currently the email-change confirmation). In production the app is
+  // mounted under /app on account.ietf.org, so this includes the /app prefix.
+  // Defaults to the dev frontend + /app.
+  publicAppUrl: (
+    process.env.PUBLIC_APP_URL ?? `${process.env.FRONTEND_URL ?? 'http://localhost:3000'}/app`
+  ).replace(/\/+$/, ''),
+
+  // SMTP, for backend-sent transactional email (the email-change verification).
+  // Optional: the email-change feature throws a clear error if unconfigured.
+  // Point it at the same SMTP server authentik uses.
+  smtp: {
+    host: process.env.SMTP_HOST ?? '',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    // true for implicit TLS (port 465); false uses STARTTLS (port 587).
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASSWORD ?? '',
+    from: process.env.SMTP_FROM ?? 'IETF Account <noreply@ietf.org>'
   },
 
   legacy: {

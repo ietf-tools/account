@@ -1,49 +1,63 @@
 <script setup>
-// Email-change confirmation link. authentik's change-email flow
-// (`ietf-email-change`) sends a verification email to the NEW address, whose link
-// points at /if/flow/ietf-email-change/?<token>. A Cloudflare rule sends that here
-// (see README "Edge routing"), and we drive the flow through FlowExecutor in
-// RESUME mode, forwarding the link's token (the preserved `query`) so authentik
-// restores the pending change and renders the confirmation.
+// Email-change confirmation link. The backend (routes/email-change.js) emails a
+// signed token to the NEW address; the link points here at
+// /app/verify-email-change?token=…. This page is the pre-fetch guard: opening the
+// link only *renders* this screen (a bare GET changes nothing), and the change is
+// applied only when the user clicks Confirm, which POSTs the token back to the
+// backend. Because the SPA needs JavaScript to make that call, a mail scanner
+// (Outlook, Microsoft Defender) pre-fetching the link can't confirm the change.
 //
-// The address-entry step of the same flow is driven separately by the embedded
-// FlowExecutor on account/profile.vue; this page only handles the mid-flow resume
-// the email link lands on. Like enrollment (and unlike recovery) the resume guard
-// is exactly the protection we want: authentik injects an interactive
-// ak-stage-consent on token resume, the token is consumed only on the user's POST,
-// and this SPA needs JavaScript to call the executor at all — so an email client
-// pre-fetching the link (Outlook, Microsoft Defender) can't confirm the change on
-// the user's behalf, and a plain link pre-fetch (which doesn't run JS) never even
-// reaches authentik. Hence NO `:auto-consent` here — the click must stay explicit.
-//
-// The change-email flow has no User Login stage (the user is already signed in), so
-// we opt out of authentik's terminal redirect (`:follow-redirect="false"` — its `to`
-// only points into authentik's own user UI), resolve our own session, and route to
-// the profile page (falling back to sign-in if the browser wasn't authenticated —
-// e.g. the link was opened on a different device).
-const auth = useAuthStore()
+// No auth middleware: the token authorises the change, so the link works even on
+// a device where the browser isn't signed in. On success we send the user to the
+// profile page (which will bounce to sign-in if they're not authenticated there).
+const route = useRoute()
 const router = useRouter()
+const api = useApi()
 
-async function onComplete() {
-  // Re-resolve from /core/users/me/ so the store (and the sidebar) reflect the new
-  // email/username the flow just wrote.
-  await auth.fetchSession()
-  router.push(auth.isAuthenticated ? '/account/profile' : '/login')
+const token = String(route.query.token ?? '')
+const state = ref(token ? 'confirm' : 'invalid') // confirm | working | done | invalid | error
+const errorMessage = ref('')
+
+async function confirm() {
+  state.value = 'working'
+  errorMessage.value = ''
+  try {
+    await api('/email-change/verify', { method: 'POST', body: { token } })
+    state.value = 'done'
+    // Brief success beat, then hand off to the profile page's own banner.
+    setTimeout(() => router.push('/account/profile?changed=1'), 1200)
+  } catch (e) {
+    errorMessage.value = e?.data?.error || e?.message || 'We could not confirm this email change.'
+    state.value = 'error'
+  }
 }
 </script>
 
 <template>
-  <FlowExecutor
-    kind="emailChange"
-    title="Confirm your new email address"
-    :resume="true"
-    :follow-redirect="false"
-    consent-text="Click continue to confirm this email address for your IETF account."
-    @complete="onComplete"
-  >
-    <template #complete>Your email address has been updated — redirecting…</template>
-    <template #footer>
-      <p>Not you? <NuxtLink to="/login" class="link">Back to sign in</NuxtLink></p>
+  <div class="card">
+    <h1 class="mb-1 text-xl font-semibold text-slate-900">Confirm your new email address</h1>
+
+    <div v-if="state === 'invalid'" class="mt-4 text-sm text-slate-600">
+      <p>This confirmation link is missing or invalid. Please start the change again from your profile.</p>
+      <NuxtLink to="/account/profile" class="link mt-3 inline-block">Back to profile</NuxtLink>
+    </div>
+
+    <template v-else-if="state === 'confirm' || state === 'working'">
+      <p class="mt-2 mb-6 text-sm text-slate-500">
+        Click confirm to set this as the email address (and sign-in) for your IETF account.
+      </p>
+      <button type="button" class="btn-primary" :disabled="state === 'working'" @click="confirm">
+        {{ state === 'working' ? 'Confirming…' : 'Confirm email change' }}
+      </button>
     </template>
-  </FlowExecutor>
+
+    <div v-else-if="state === 'done'" class="mt-4 text-sm text-slate-600">
+      Your email address has been updated — redirecting…
+    </div>
+
+    <div v-else-if="state === 'error'" class="mt-4">
+      <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ errorMessage }}</p>
+      <NuxtLink to="/account/profile" class="link mt-3 inline-block">Back to profile</NuxtLink>
+    </div>
+  </div>
 </template>

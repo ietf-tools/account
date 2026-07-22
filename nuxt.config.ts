@@ -69,10 +69,6 @@ const flows = {
     process.env.AUTHENTIK_FLOW_PROVIDER_INVALIDATION ?? 'ietf-provider-invalidation',
   userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'ietf-user-settings',
   passwordChange: process.env.AUTHENTIK_FLOW_PASSWORD_CHANGE ?? 'ietf-password-change',
-  // Change-email flow: a dedicated flow (not the user-settings prompt) that
-  // collects the new address, verifies it via an email link, then writes it —
-  // keeping username identical to email server-side. Driven from profile.vue.
-  emailChange: process.env.AUTHENTIK_FLOW_EMAIL_CHANGE ?? 'ietf-email-change',
   // Authenticator (MFA) enrollment flows, one per device type.
   totpSetup: process.env.AUTHENTIK_FLOW_TOTP_SETUP ?? 'default-authenticator-totp-setup',
   webauthnSetup: process.env.AUTHENTIK_FLOW_WEBAUTHN_SETUP ?? 'default-authenticator-webauthn-setup',
