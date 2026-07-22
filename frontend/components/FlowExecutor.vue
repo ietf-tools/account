@@ -332,6 +332,13 @@ function inputType(field) {
   return { text: 'text', username: 'text', email: 'email', password: 'password', number: 'number', date: 'date', tel: 'tel', url: 'url' }[field.type] ?? 'text'
 }
 
+// Autocomplete hint for a prompt field, so password managers behave sensibly —
+// notably `new-password` on the recovery/enrollment password fields, which lets
+// them offer to save the freshly chosen password.
+function autocompleteFor(field) {
+  return { password: 'new-password', email: 'email', username: 'username' }[field.type]
+}
+
 // Social / source logins can't be driven headlessly like password stages: the
 // browser has to leave to authentik (and on to Google/GitHub/Apple) and come
 // back. We send it to the source's login URL with a `next` that returns to this
@@ -537,6 +544,7 @@ function signOutEntirely() {
             <input
               v-model="model[field.field_key]"
               :type="inputType(field)"
+              :autocomplete="autocompleteFor(field)"
               :placeholder="field.placeholder"
               :required="field.required"
               class="field-input"
