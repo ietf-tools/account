@@ -4,8 +4,9 @@
 // /if/flow/ietf-enrollment/?<token>. A Cloudflare rule sends that here (see README
 // "Edge routing"), and we drive the flow through FlowExecutor in RESUME mode,
 // forwarding the link's token (the `query`) so authentik restores the pending
-// enrollment. It resumes on an interactive consent stage (authentik's generic
-// "confirm to proceed" step, with our own copy via `consent-text`): the token is
+// enrollment. It resumes on an interactive ak-stage-consent challenge (authentik's
+// generic "confirm to proceed" step — injected on any token resume, not a stage in
+// the flow's bindings — with our own copy via `consent-text`): the token is
 // only consumed when the user submits (POST), so an email client pre-fetching
 // the link (Outlook, Defender) can't verify the account on the user's behalf — and
 // because this SPA needs JavaScript to call the executor at all, a plain link

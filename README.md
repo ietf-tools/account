@@ -122,10 +122,14 @@ authentik's terminal redirect (`:follow-redirect="false"` — its `to` only poin
 into authentik's own user UI), resolves the session itself, and routes into the
 signed-in area (falling back to sign-in if the flow didn't authenticate).
 
-> The confirmation is an `ak-stage-consent` stage (authentik's generic "confirm to
-> proceed" step). `FlowExecutor` renders it with `verify-email.vue`'s `consent-text`
-> override and echoes the challenge's required `token` back on submit. If your flow
-> uses a different component, add a branch in
+> The confirmation is an `ak-stage-consent` challenge (authentik's generic "confirm
+> to proceed" step). It is **not** a stage in the flow's bindings — authentik injects
+> it whenever a flow is resumed from an email-link token, as a resume guard. Here
+> that guard is exactly what we want (the user must click to confirm the email), so
+> `FlowExecutor` renders it with `verify-email.vue`'s `consent-text` override and
+> echoes the challenge's required `token` back on submit. (Recovery injects the same
+> consent but suppresses it — see "Password reset" below.) If your flow surfaces a
+> different component, add a branch in
 > [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) — an unhandled stage
 > still renders a labelled fallback rather than dead-ending.
 
@@ -145,12 +149,14 @@ The user picks a new password → the POST advances the flow. Like the enrollmen
 link this is pre-fetch-safe: the token is consumed only as the flow advances on the
 POST, **and** the SPA needs JavaScript to reach the executor at all.
 
-> The recovery flow opens on an `ak-stage-consent` ("… is requesting access …")
-> before the password prompt. Unlike enrollment we don't need it as a pre-fetch
-> guard — the password prompt is itself the interactive gate — so `reset-password.vue`
-> passes `:auto-consent="true"` and `FlowExecutor` submits that consent
-> programmatically, dropping the user straight onto the password form. (`auto-consent`
-> is strictly opt-in: real OAuth access-consent on login stays an explicit click.)
+> Resuming from the token surfaces an `ak-stage-consent` ("… is requesting access …")
+> before the password prompt — the same consent authentik injects on any token
+> resume (it's **not** in `ietf-recovery`'s stage bindings; see the enrollment note
+> above). Unlike enrollment we don't need it as a resume guard here — the password
+> prompt is itself the interactive gate — so `reset-password.vue` passes
+> `:auto-consent="true"` and `FlowExecutor` submits that consent programmatically,
+> dropping the user straight onto the password form. (`auto-consent` is strictly
+> opt-in: real OAuth access-consent on login stays an explicit click.)
 
 The recovery
 flow ends on a `User Login` stage, so the browser is signed in on completion; the
