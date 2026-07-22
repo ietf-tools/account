@@ -7,6 +7,9 @@ definePageMeta({ middleware: 'auth', layout: 'account' })
 const { devices, loading, error, usingSample, load, remove } = useMfa()
 
 const removing = ref(null)
+// Two-step confirm so a destructive click can't remove an authenticator by
+// accident — holds the pk of the device awaiting confirmation, or null.
+const confirming = ref(null)
 const actionError = ref(null)
 const enrollSuccess = ref(null)
 
@@ -66,6 +69,7 @@ async function onRemove(device) {
   actionError.value = null
   try {
     await remove(device)
+    confirming.value = null
   } catch (e) {
     actionError.value = e?.data?.detail || e?.message || 'Could not remove that authenticator.'
   } finally {
@@ -196,15 +200,41 @@ onMounted(load)
             <p class="mt-0.5 text-xs text-slate-500">{{ device.kindLabel }}</p>
           </div>
 
+          <!-- Two-step confirm: swap the Remove button for confirm/cancel -->
+          <div v-if="confirming === device.pk" class="flex shrink-0 items-center gap-2">
+            <span class="hidden text-xs text-slate-500 sm:block">Remove this authenticator?</span>
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center rounded-lg bg-red-600 px-3 py-2
+                text-sm font-semibold text-white shadow-sm transition hover:bg-red-500
+                disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="removing === device.pk"
+              @click="onRemove(device)"
+            >
+              {{ removing === device.pk ? 'Removing…' : 'Yes, remove' }}
+            </button>
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+                bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
+                hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="removing === device.pk"
+              @click="confirming = null"
+            >
+              Cancel
+            </button>
+          </div>
+
           <button
+            v-else
+            type="button"
             class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
               bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
               hover:border-red-300 hover:bg-red-50 hover:text-red-700
               disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="removing === device.pk"
-            @click="onRemove(device)"
+            @click="confirming = device.pk"
           >
-            {{ removing === device.pk ? 'Removing…' : 'Remove' }}
+            Remove
           </button>
         </li>
       </ul>
