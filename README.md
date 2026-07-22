@@ -344,13 +344,14 @@ documented here so they aren't lost tribal knowledge.
 | 7 | `/if/flow/ietf-social-enrollment/` → `/app/social-enrollment` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-social-enrollment/"` | A first-time social sign-up landing on authentik's stock flow UI |
 | 8 | `/if/flow/ietf-enrollment/` → `/app/verify-email` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-enrollment/"` | An enrollment email-confirmation link landing on authentik's stock flow UI |
 | 9 | `/if/flow/ietf-recovery/` → `/app/reset-password` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-recovery/"` | A password-reset email link landing on authentik's stock flow UI |
+| 10 | `/if/flow/ietf-provider-authorization/` → `/app/authorize` (**preserving the querystring**) | `http.request.uri.path eq "/if/flow/ietf-provider-authorization/"` | A third-party app's OAuth authorization (consent/redirect) landing on authentik's stock flow UI |
 
-Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–9
+Rules 1 & 2 use a static **`302` → `https://account.ietf.org/app/`**. Rules 3–10
 must **preserve the querystring** (rules 8 & 9 especially — they carry the email
-token), so make them *dynamic* redirects — e.g.
+token; rule 10 carries the OAuth request), so make them *dynamic* redirects — e.g.
 `concat("https://account.ietf.org/app/login?", http.request.uri.query)` for rule 3
-and the matching `/app/{logout,signed-out,social-callback,social-enrollment,verify-email,reset-password}?…`
-targets for rules 4–9 (302).
+and the matching `/app/{logout,signed-out,social-callback,social-enrollment,verify-email,reset-password,authorize}?…`
+targets for rules 4–10 (302).
 
 **Rule 1 must match the root exactly** (`eq "/"`, not `starts_with`) — a prefix
 match would swallow authentik's entire domain root (`/api/v3`, `/if/*`, `/flows/*`
@@ -362,11 +363,12 @@ Worker an `/if/*` route would collide with authentik, which needs the rest of
 render in. So do **not** blanket-redirect `/if/flow/*`, `/source/*`, `/flows/*`,
 `/api/*`, `/static/*`, or `/if/admin/*` (admins still need it).
 
-**Rules 3–9 are the scoped exceptions** to that `/if/flow/*` warning: each matches
+**Rules 3–10 are the scoped exceptions** to that `/if/flow/*` warning: each matches
 a single flow slug *exactly* (`/if/flow/ietf-login/`,
 `/if/flow/ietf-provider-invalidation/`, `/if/flow/ietf-invalidation/`,
 `/if/flow/ietf-social-callback/`, `/if/flow/ietf-social-enrollment/`,
-`/if/flow/ietf-enrollment/`, `/if/flow/ietf-recovery/`), so they leave every other
+`/if/flow/ietf-enrollment/`, `/if/flow/ietf-recovery/`,
+`/if/flow/ietf-provider-authorization/`), so they leave every other
 flow — MFA setup, admin flows — rendering in authentik. Keep them exact; a slug
 that both a rule and another purpose share will route here for both, so give each
 intercepted flow its own dedicated slug. (Rules 8 & 9 reuse the `ietf-enrollment`
@@ -392,7 +394,16 @@ mode**:
 - On completion the SPA follows authentik's terminal redirect (`xak-flow-redirect`
   → `to`) back to the app, instead of routing to its own home page.
 
-Explicit-consent providers add an `ak-stage-consent` stage, which FlowExecutor
+Once the user is authenticated, authentik hands off to the OAuth provider's
+**authorization flow** (`ietf-provider-authorization`) to grant access and issue
+the app its code. For an already-signed-in user (SSO) the login flow above is
+skipped entirely and this is the *only* flow that runs — so all the user sees is a
+brief "redirecting" screen. Rule 10 intercepts its stock UI at
+`/if/flow/ietf-provider-authorization/` and sends it to `/app/authorize`, where
+[`authorize.vue`](frontend/pages/authorize.vue) drives it — again **in resume
+mode** (cancelling would drop the OAuth request) and following the terminal
+redirect back to the app on completion. Explicit-consent providers add an
+`ak-stage-consent` stage, which [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue)
 renders. This path **can't be exercised in local dev** (authentik is remote), so
 verify it against a same-host deployment with a real OAuth client.
 

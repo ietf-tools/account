@@ -67,6 +67,15 @@ const flows = {
   // flow (the actual logout), whose URL authentik hands back on that challenge.
   providerInvalidation:
     process.env.AUTHENTIK_FLOW_PROVIDER_INVALIDATION ?? 'ietf-provider-invalidation',
+  // Provider authorization flow: the one authentik runs (at
+  // /application/o/authorize/?client_id=…) once the user is authenticated, to
+  // grant access and issue a third-party app its OAuth code. With implicit
+  // consent it's non-interactive and lands straight on the terminal redirect back
+  // to the app; explicit-consent providers add an ak-stage-consent stage. The SPA
+  // drives this in resume mode (see authorize.vue). NOT the login flow
+  // (ietf-login) — that authenticates the user first, before this runs.
+  providerAuthorization:
+    process.env.AUTHENTIK_FLOW_PROVIDER_AUTHORIZATION ?? 'ietf-provider-authorization',
   userSettings: process.env.AUTHENTIK_FLOW_USER_SETTINGS ?? 'ietf-user-settings',
   passwordChange: process.env.AUTHENTIK_FLOW_PASSWORD_CHANGE ?? 'ietf-password-change',
   // Authenticator (MFA) enrollment flows, one per device type.
