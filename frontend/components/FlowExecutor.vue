@@ -152,6 +152,11 @@ function beginPasswordless() {
 // swaps — e.g. moving to the password step, or "Not you?" returning to email).
 const formEl = ref(null)
 
+// The ak-stage-autosubmit <form> (see the challenge watcher / template). Held
+// separately from formEl because it's a real cross-origin POST that must navigate
+// natively — it is NOT the executor form and never runs onSubmit.
+const autosubmitEl = ref(null)
+
 function focusFirstField() {
   nextTick(() => {
     formEl.value?.querySelector('input:not([type="hidden"]), select, textarea')?.focus()
@@ -165,6 +170,15 @@ watch(challenge, (c) => {
   uidError.value = ''
   selectedDevice.value = null
   if (!c) {
+    return
+  }
+  // Auto-submit stage: a terminal hand-off to an external endpoint (e.g. a SAML
+  // SP's ACS URL — the SAMLResponse rides along as a hidden field). We render a
+  // real cross-origin <form> and fire it natively; form.submit() bypasses the
+  // @submit handler, so this never posts back to the executor. The visible
+  // "Continue" button is the fallback if the browser blocks the automatic submit.
+  if (c.component === 'ak-stage-autosubmit') {
+    nextTick(() => autosubmitEl.value?.submit())
     return
   }
   // Auto-advance a redundant leading consent stage when the host opts in (recovery:
@@ -450,6 +464,37 @@ function signOutEntirely() {
       />
       <span>Loading…</span>
     </div>
+
+    <!-- Auto-submit: a terminal stage that hands the browser off to an external
+         endpoint via a native form POST (e.g. a SAML SP's ACS URL — the
+         SAMLResponse/RelayState ride along as hidden fields). Unlike every other
+         stage we do NOT post back to the executor: this is a real cross-origin
+         navigation, auto-fired on render (see the challenge watcher). The Continue
+         button is the fallback if the browser blocks the automatic submit. -->
+    <form
+      v-else-if="component === 'ak-stage-autosubmit'"
+      ref="autosubmitEl"
+      :action="challenge.url"
+      method="post"
+      class="space-y-4"
+    >
+      <input
+        v-for="(value, key) in challenge.attrs"
+        :key="key"
+        type="hidden"
+        :name="key"
+        :value="value"
+      />
+      <div class="flex flex-col items-center gap-3 py-6 text-sm text-slate-400">
+        <span
+          class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500"
+          role="status"
+          aria-label="Redirecting"
+        />
+        <span>{{ challenge.title || 'Redirecting…' }}</span>
+      </div>
+      <button type="submit" class="btn-primary">Continue</button>
+    </form>
 
     <!-- Active stage -->
     <form
