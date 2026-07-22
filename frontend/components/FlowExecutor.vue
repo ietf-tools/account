@@ -26,7 +26,13 @@ const props = defineProps({
   // downstream app. False for a standalone resume like the enrollment email
   // confirmation, whose `to` only points into authentik's own user UI: there we
   // emit `complete` instead so the host page resolves the session and routes.
-  followRedirect: { type: Boolean, default: true }
+  followRedirect: { type: Boolean, default: true },
+  // Auto-submit a leading ak-stage-consent instead of rendering its "confirm to
+  // proceed" button (see reset-password.vue). Use only where that consent is a
+  // redundant gate — i.e. a genuinely interactive stage follows it (the password
+  // prompt), which is what actually guards the flow. MUST stay opt-in: real OAuth
+  // access-consent on login has to be an explicit user action, never auto-clicked.
+  autoConsent: { type: Boolean, default: false }
 })
 const emit = defineEmits(['complete'])
 
@@ -42,6 +48,11 @@ const { challenge, complete, user, redirectTo, loading, error, begin, beginFlow,
 // Local form model, reset whenever the stage changes.
 const model = reactive({})
 const component = computed(() => challenge.value?.component)
+
+// True while a host-opted-in consent stage is being auto-submitted (see the
+// autoConsent prop): the template shows the loading spinner rather than the consent
+// card, so the redundant step is skipped without a flash.
+const autoConsenting = computed(() => props.autoConsent && component.value === 'ak-stage-consent')
 
 // --- Authenticator validation (MFA) --------------------------------------
 // authentik's ak-stage-authenticator-validate offers one `device_challenge` per
@@ -122,6 +133,11 @@ const submitLabel = computed(() => {
 const passwordlessSlug = computed(() => flowSlugFromUrl(challenge.value?.passwordless_url))
 const passwordlessMode = ref(false)
 
+// Guards the one-shot auto-consent (see the `autoConsent` prop): flips once we've
+// fired the programmatic submit so a re-render (e.g. the consent stage coming back
+// with an error) can't loop.
+const autoConsentTried = ref(false)
+
 function beginPasswordless() {
   const slug = passwordlessSlug.value
   if (!slug) {
@@ -149,6 +165,16 @@ watch(challenge, (c) => {
   uidError.value = ''
   selectedDevice.value = null
   if (!c) {
+    return
+  }
+  // Auto-advance a redundant leading consent stage when the host opts in (recovery:
+  // the password prompt that follows is the real interactive gate, so authentik's
+  // consent step is just an extra click). One-shot via autoConsentTried so a
+  // re-render can't loop. Still pre-fetch-safe: this only runs in a real browser
+  // executing JS — a link pre-fetch never gets this far.
+  if (props.autoConsent && c.component === 'ak-stage-consent' && !autoConsentTried.value) {
+    autoConsentTried.value = true
+    nextTick(onSubmit)
     return
   }
   // Seed prompt fields with their initial values.
@@ -414,8 +440,9 @@ function signOutEntirely() {
       <slot name="complete">You're all set.</slot>
     </div>
 
-    <!-- Initial load -->
-    <div v-else-if="!challenge" class="flex flex-col items-center gap-3 py-6 text-sm text-slate-400">
+    <!-- Initial load — also covers the auto-consent hand-off (see autoConsenting),
+         so the redundant consent card never flashes before it advances. -->
+    <div v-else-if="!challenge || autoConsenting" class="flex flex-col items-center gap-3 py-6 text-sm text-slate-400">
       <span
         class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500"
         role="status"

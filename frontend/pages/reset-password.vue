@@ -13,6 +13,11 @@
 // JavaScript to call the executor at all, so a link pre-fetch (Outlook, Defender)
 // that doesn't run JS never reaches authentik.
 //
+// The recovery flow opens on an ak-stage-consent ("… is requesting access …")
+// before the password prompt. Unlike enrollment we don't need it as a pre-fetch
+// guard (the password prompt is itself the interactive gate), so `:auto-consent`
+// submits it for us and the user lands straight on the password form.
+//
 // The recovery flow ends on a User Login stage, so completion leaves the browser
 // signed in. We opt out of following authentik's terminal redirect
 // (`:follow-redirect="false"` — its `to` only points into authentik's own user UI),
@@ -37,6 +42,7 @@ async function onComplete() {
     title="Choose a new password"
     :resume="true"
     :follow-redirect="false"
+    :auto-consent="true"
     @complete="onComplete"
   >
     <template #complete>Your password has been reset — redirecting…</template>

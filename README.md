@@ -143,7 +143,16 @@ querystring) so authentik restores the pending recovery and renders the "set a n
 password" stage (an `ak-stage-prompt` carrying the password fields) in our own UI.
 The user picks a new password → the POST advances the flow. Like the enrollment
 link this is pre-fetch-safe: the token is consumed only as the flow advances on the
-POST, **and** the SPA needs JavaScript to reach the executor at all. The recovery
+POST, **and** the SPA needs JavaScript to reach the executor at all.
+
+> The recovery flow opens on an `ak-stage-consent` ("… is requesting access …")
+> before the password prompt. Unlike enrollment we don't need it as a pre-fetch
+> guard — the password prompt is itself the interactive gate — so `reset-password.vue`
+> passes `:auto-consent="true"` and `FlowExecutor` submits that consent
+> programmatically, dropping the user straight onto the password form. (`auto-consent`
+> is strictly opt-in: real OAuth access-consent on login stays an explicit click.)
+
+The recovery
 flow ends on a `User Login` stage, so the browser is signed in on completion; the
 page opts out of authentik's terminal redirect (`:follow-redirect="false"`),
 resolves the session itself, and routes into the signed-in area (falling back to
