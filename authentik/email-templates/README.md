@@ -7,6 +7,7 @@ templates that replace the stock authentik emails with IETF-branded ones:
 | --- | --- | --- |
 | [`ietf_account_confirmation.html`](ietf_account_confirmation.html) | Account-creation email verification | `ietf-enrollment` → Email stage `ietf-enrollment-emailverify` |
 | [`ietf_password_reset.html`](ietf_password_reset.html) | Password reset | `ietf-recovery` → Email stage `ietf-recovery-email-verification-stage` |
+| [`ietf_email_change.html`](ietf_email_change.html) | Email-change verification (sent to the new address) | `ietf-email-change` → Email stage `ietf-email-change-email` |
 
 They are standalone (they don't `{% extends %}` authentik's base template), so the
 look is fully self-contained and email-client-safe (table layout, inline styles).
@@ -29,6 +30,7 @@ NS=authentik
 kubectl -n "$NS" create configmap authentik-email-templates \
   --from-file=ietf_account_confirmation.html=ietf_account_confirmation.html \
   --from-file=ietf_password_reset.html=ietf_password_reset.html \
+  --from-file=ietf_email_change.html=ietf_email_change.html \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -74,6 +76,7 @@ in the table above, **Edit** it and:
   template. Suggested:
   - Enrollment: `Confirm your IETF account email address`
   - Recovery: `Reset your IETF account password`
+  - Email change: `Confirm your new IETF account email address`
 
 ### 4. Restart and verify
 
@@ -89,6 +92,56 @@ kubectl -n "$NS" rollout restart deployment -l app.kubernetes.io/name=authentik
 Then test end-to-end (register a throwaway account; trigger a password reset) and
 check the received email. If a template doesn't appear or doesn't render, check the
 **worker** logs — authentik logs template-discovery and render errors there.
+
+## Email-change flow (`ietf-email-change`) — extra wiring
+
+Unlike enrollment/recovery (where selecting the template is all that's needed on the
+authentik side), the change-email flow needs three additional things, because it
+sends the verification email to an address the user just typed and must apply the
+change only after they confirm it:
+
+1. **Send to the new address.** An expression policy on the Email stage
+   (`ietf-email-change-email`) redirects the recipient to the entered address by
+   mutating the in-memory pending user before the stage runs:
+
+   ```python
+   new_email = request.context.get("prompt_data", {}).get("email")
+   if not new_email:
+       return False
+   pending_user = request.context.get("pending_user")
+   if pending_user:
+       pending_user.email = new_email      # in memory only — not saved yet
+   request.context["prompt_data"]["username"] = new_email  # keep username == email
+   return True
+   ```
+
+   Bind it to the Email stage's **FlowStageBinding** with **Evaluate on plan = OFF**
+   and **Re-evaluate policies = ON** — otherwise it runs before `prompt_data` exists
+   and silently sends to the *old* address.
+
+2. **Cloudflare Rule 10.** The verification link points at
+   `/if/flow/ietf-email-change/?<token>`; Rule 10 must route that to
+   `/app/verify-email-change` (preserving the querystring) so the app drives the
+   confirmation. See the main [README.md](../../README.md) "Edge routing" table.
+
+3. **⚠️ Verify the pre-fetch guard before going live.** The change must NOT be
+   applied on a bare GET of the link — otherwise a mail scanner (Outlook / Microsoft
+   Defender Safe Links) that pre-fetches it would confirm the change on the user's
+   behalf. The protection relies on authentik injecting an interactive
+   `ak-stage-consent` when the flow is **resumed from the email token**, so
+   `user_write` runs only after the user's explicit POST. **Confirm this actually
+   happens for this flow:**
+
+   - Trigger a change, then open the link and check that you land on a "confirm to
+     proceed" step **before** the address is written — the new email should NOT yet
+     be in effect at that point.
+   - Or reproduce a scanner: `curl -sL "<the link from the email>"` (a plain GET,
+     no JS) and verify afterwards that the address is **unchanged**.
+
+   If the flow instead resumes straight onto `user_write` (no consent), add an
+   explicit **Consent** (or a confirmation **Prompt**) stage in the flow *after* the
+   Email stage so a real interactive POST is always required. `verify-email-change.vue`
+   already renders `ak-stage-consent` (and any prompt) via `FlowExecutor`.
 
 ## Editing notes
 
