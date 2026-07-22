@@ -85,7 +85,7 @@ onMounted(load)
     <div class="mb-6 flex items-start justify-between gap-4">
       <div>
         <h1 class="text-xl font-semibold text-slate-900">MFA Authenticators</h1>
-        <p class="mt-1 text-sm text-slate-500">Manage the two-factor methods on your account.</p>
+        <p class="mt-1 text-sm text-slate-500">Manage the multi-factor methods on your account.</p>
       </div>
 
       <div class="relative shrink-0">
@@ -165,7 +165,7 @@ onMounted(load)
             d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.249-8.25-3.286z"
           />
         </svg>
-        <p class="text-sm text-slate-500">You don't have any two-factor authenticators set up yet.</p>
+        <p class="text-sm text-slate-500">You don't have any multi-factor authenticators set up yet.</p>
       </div>
 
       <ul v-else class="space-y-3">

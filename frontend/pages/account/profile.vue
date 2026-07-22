@@ -84,27 +84,10 @@ onMounted(async () => {
     <LoadingState v-else-if="loading" text="Loading your profile…" />
 
     <template v-else>
-      <form @submit.prevent="save" class="space-y-4">
-        <div
-          v-for="msg in nonFieldErrors"
-          :key="msg.code"
-          class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {{ msg.string }}
-        </div>
-
-        <PromptFields :fields="fields" :values="values" :error-for="errorFor" />
-
-        <div class="flex justify-end">
-          <button type="submit" class="btn-primary w-auto px-4" :disabled="saving">
-            {{ saving ? 'Saving…' : 'Save changes' }}
-          </button>
-        </div>
-      </form>
-
       <!-- Email is managed separately so the new address can be verified (a link
-           sent to it) before it takes effect, and the username kept in sync. -->
-      <div class="mt-6 border-t border-slate-200 pt-6">
+           sent to it) before it takes effect, and the username kept in sync. Shown
+           first, with a separator before the rest of the profile fields. -->
+      <div class="mb-6 border-b border-slate-200 pb-6">
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
             <p class="text-sm font-medium text-slate-900">Email address</p>
@@ -142,15 +125,12 @@ onMounted(async () => {
               required
             />
             <p class="mt-1 text-xs text-slate-500">
-              We'll send a confirmation link to this address. Your email (and sign-in) only changes
-              once you open it.
+              We'll send a confirmation link to this email address. Your email (and sign-in) only changes
+              once you click it and confirm the modification.
             </p>
             <p v-if="emailError" class="mt-1 text-sm text-red-600">{{ emailError }}</p>
           </div>
-          <div class="flex gap-3">
-            <button type="submit" class="btn-primary w-auto px-4" :disabled="sending">
-              {{ sending ? 'Sending…' : 'Send confirmation link' }}
-            </button>
+          <div class="flex justify-end gap-3">
             <button
               type="button"
               class="inline-flex items-center justify-center rounded-lg border border-slate-300
@@ -161,9 +141,30 @@ onMounted(async () => {
             >
               Cancel
             </button>
+            <button type="submit" class="btn-primary w-auto px-4" :disabled="sending">
+              {{ sending ? 'Sending…' : 'Send confirmation link' }}
+            </button>
           </div>
         </form>
       </div>
+
+      <form @submit.prevent="save" class="space-y-4">
+        <div
+          v-for="msg in nonFieldErrors"
+          :key="msg.code"
+          class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {{ msg.string }}
+        </div>
+
+        <PromptFields :fields="fields" :values="values" :error-for="errorFor" />
+
+        <div class="flex justify-end">
+          <button type="submit" class="btn-primary w-auto px-4" :disabled="saving">
+            {{ saving ? 'Saving…' : 'Save changes' }}
+          </button>
+        </div>
+      </form>
     </template>
   </div>
 </template>
