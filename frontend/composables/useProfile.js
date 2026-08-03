@@ -59,18 +59,13 @@ export function useProfile() {
         // Only submit fields the user can actually edit. `static` is display-only,
         // and `hidden` fields are pre-filled immutable values (e.g. username) —
         // echoing those back makes user_write reject the write ("Not allowed to
-        // change username"). `email` is managed by the dedicated verified
-        // email-change flow (see profile.vue); it's kept out of the editable form
-        // here and instead re-sent unchanged at submit time (see save()) to
-        // satisfy authentik's "email must not change" policy. Skip all three.
-        if (field.type === 'static' || field.type === 'hidden' || field.field_key === 'email') {
+        // change username"). Skip both so only visible inputs are sent.
+        if (field.type === 'static' || field.type === 'hidden') {
           continue
         }
         values[field.field_key] = field.initial_value ?? (field.type === 'checkbox' ? false : '')
       }
-      fields.value = all.filter(
-        (field) => field.type !== 'hidden' && field.field_key !== 'email'
-      )
+      fields.value = all.filter((field) => field.type !== 'hidden')
       fieldErrors.value = challenge.response_errors ?? {}
       nonFieldErrors.value = challenge.response_errors?.non_field_errors ?? []
       return 'prompt'
@@ -145,18 +140,7 @@ export function useProfile() {
         saved.value = true
         return
       }
-      // authentik's user-settings flow has a validation policy that forbids
-      // *changing* the email here — it's owned by the dedicated verified
-      // email-change flow (see profile.vue). The policy compares the submitted
-      // email against the account's current one, so we must send it UNCHANGED:
-      // omitting it reads as a change to empty and trips "Not allowed to change
-      // email address." The prompt stage no longer renders an email field, so we
-      // inject the current address from the resolved session identity.
-      const body = { ...values }
-      if (auth.user?.email) {
-        body.email = auth.user.email
-      }
-      const kind = applyChallenge(await ak(executorUrl, { method: 'POST', body }))
+      const kind = applyChallenge(await ak(executorUrl, { method: 'POST', body: { ...values } }))
       if (kind === 'complete') {
         // Name/email may have changed — refresh identity (updates the sidebar),
         // then re-present the form with the new values.

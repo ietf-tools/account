@@ -104,15 +104,17 @@ fresh cookie jar per `begin`.)
   ([stores/auth.js](frontend/stores/auth.js)); there's no app-side login session, so a backend restart
   does *not* log anyone out. The backend's in-memory session (cookie `sessionId`) now holds **only**
   the legacy migration's two-step handoff; multi-instance would still want a shared store there.
-- **The user-settings flow must re-send `email` UNCHANGED — never editable, never omitted.** authentik
-  binds a validation policy to `ietf-user-settings` that compares the submitted email to the account's
-  current one and rejects any difference with "Not allowed to change email address" (email is owned by
-  the dedicated verified email-change flow — [profile.vue](frontend/pages/account/profile.vue) +
-  backend). The policy fires on **absence** too: omitting email reads as a change to empty and trips it.
-  So [useProfile.js](frontend/composables/useProfile.js) keeps email out of the editable `fields`/`values`
-  (like `static`/`hidden`) but re-injects the current `auth.user.email` into the POST body in `save()`.
-  `username` is kept in sync with email server-side; don't submit it either. Anything editable here must
-  be a genuinely writable attribute (e.g. `name`, `attributes.pronouns`).
+- **The user-settings email guard is fixed in authentik, not here — the client cannot work around it.**
+  The `ietf-user-settings` prompt stage has authentik's stock validation policy attached, whose email
+  branch is `if prompt_data.get("email") != request.user.email: reject("Not allowed to change email
+  address.")` — with **no default** (unlike the sibling username branch, `prompt_data.get("username",
+  request.user.username)`). Since the email field was removed from the stage (email is owned by the
+  verified email-change flow — [profile.vue](frontend/pages/account/profile.vue) + backend),
+  `prompt_data` never carries email, so the guard sees `None`, treats it as a change, and rejects every
+  save. Injecting `email` from the client does **not** help: the prompt serializer discards any POST key
+  that isn't a declared stage field, so it never reaches `prompt_data`. **Fix = edit that authentik
+  policy** so the email line mirrors the username line: `prompt_data.get("email", request.user.email)`
+  (or drop the email block, or re-add a hidden `email` field whose initial value is `request.user.email`).
 - **Admin API token** (`AUTHENTIK_API_TOKEN`) is used **only** by the migration flow, not normal auth.
 
 ## Conventions
