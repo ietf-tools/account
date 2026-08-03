@@ -28,7 +28,13 @@ function inputType(field) {
 <template>
   <div class="space-y-4">
     <div v-for="field in fields" :key="field.field_key">
-      <template v-if="field.type === 'static'">
+      <template v-if="field.field_key === 'attributes.pronouns'">
+        <label class="field-label">
+          {{ field.label }}<span v-if="field.required" class="text-red-500"> *</span>
+        </label>
+        <PronounsField v-model="values[field.field_key]" />
+      </template>
+      <template v-else-if="field.type === 'static'">
         <p class="text-sm text-slate-600" v-html="field.initial_value" />
       </template>
       <template v-else-if="field.type === 'checkbox'">
