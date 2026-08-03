@@ -104,13 +104,15 @@ fresh cookie jar per `begin`.)
   ([stores/auth.js](frontend/stores/auth.js)); there's no app-side login session, so a backend restart
   does *not* log anyone out. The backend's in-memory session (cookie `sessionId`) now holds **only**
   the legacy migration's two-step handoff; multi-instance would still want a shared store there.
-- **Never submit `email` or `username` through the user-settings flow.** authentik's user_write
-  rejects them ("Not allowed to change email address / username") — email is owned by the dedicated
-  verified email-change flow ([profile.vue](frontend/pages/account/profile.vue) + backend), and
-  username is kept in sync with it. [useProfile.js](frontend/composables/useProfile.js) filters both
-  (plus `static`/`hidden` fields) out of the submitted `values` **and** the rendered `fields`, even
-  though the prompt stage still returns an `email` field. Anything editable there must be a genuinely
-  writable attribute (e.g. `name`, `attributes.pronouns`).
+- **The user-settings flow must re-send `email` UNCHANGED — never editable, never omitted.** authentik
+  binds a validation policy to `ietf-user-settings` that compares the submitted email to the account's
+  current one and rejects any difference with "Not allowed to change email address" (email is owned by
+  the dedicated verified email-change flow — [profile.vue](frontend/pages/account/profile.vue) +
+  backend). The policy fires on **absence** too: omitting email reads as a change to empty and trips it.
+  So [useProfile.js](frontend/composables/useProfile.js) keeps email out of the editable `fields`/`values`
+  (like `static`/`hidden`) but re-injects the current `auth.user.email` into the POST body in `save()`.
+  `username` is kept in sync with email server-side; don't submit it either. Anything editable here must
+  be a genuinely writable attribute (e.g. `name`, `attributes.pronouns`).
 - **Admin API token** (`AUTHENTIK_API_TOKEN`) is used **only** by the migration flow, not normal auth.
 
 ## Conventions
