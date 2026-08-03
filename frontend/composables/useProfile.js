@@ -59,13 +59,18 @@ export function useProfile() {
         // Only submit fields the user can actually edit. `static` is display-only,
         // and `hidden` fields are pre-filled immutable values (e.g. username) —
         // echoing those back makes user_write reject the write ("Not allowed to
-        // change username"). Skip both so only visible inputs are sent.
-        if (field.type === 'static' || field.type === 'hidden') {
+        // change username"). `email` is managed by the dedicated verified
+        // email-change flow (see profile.vue), so submitting it here is likewise
+        // rejected ("Not allowed to change email address"). Skip all three so only
+        // the truly editable inputs are sent.
+        if (field.type === 'static' || field.type === 'hidden' || field.field_key === 'email') {
           continue
         }
         values[field.field_key] = field.initial_value ?? (field.type === 'checkbox' ? false : '')
       }
-      fields.value = all.filter((field) => field.type !== 'hidden')
+      fields.value = all.filter(
+        (field) => field.type !== 'hidden' && field.field_key !== 'email'
+      )
       fieldErrors.value = challenge.response_errors ?? {}
       nonFieldErrors.value = challenge.response_errors?.non_field_errors ?? []
       return 'prompt'
