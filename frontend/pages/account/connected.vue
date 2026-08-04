@@ -8,6 +8,10 @@ const { connected, available, loading, error, usingSample, load, disconnect } =
   useConnectedSources()
 
 const disconnecting = ref(null)
+// Two-step confirm so a destructive click can't unlink a sign-in method by
+// accident — holds the connectionPk of the service awaiting confirmation, or
+// null. Same pattern as the MFA page's device removal.
+const confirming = ref(null)
 const actionError = ref(null)
 
 function formatDate(value) {
@@ -34,6 +38,7 @@ async function onDisconnect(item) {
   actionError.value = null
   try {
     await disconnect(item)
+    confirming.value = null
   } catch (e) {
     actionError.value = e?.data?.detail || e?.message || 'Could not disconnect that service.'
   } finally {
@@ -80,15 +85,41 @@ onMounted(load)
                 Connected {{ formatDate(item.created) }}
               </p>
             </div>
+            <!-- Two-step confirm: swap the Disconnect button for confirm/cancel -->
+            <div v-if="confirming === item.connectionPk" class="flex shrink-0 items-center gap-2">
+              <span class="hidden text-xs text-slate-500 sm:block">Disconnect this service?</span>
+              <button
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center rounded-lg bg-red-600 px-3 py-2
+                  text-sm font-semibold text-white shadow-sm transition hover:bg-red-500
+                  disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="disconnecting === item.connectionPk"
+                @click="onDisconnect(item)"
+              >
+                {{ disconnecting === item.connectionPk ? 'Disconnecting…' : 'Yes, disconnect' }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+                  bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
+                  hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="disconnecting === item.connectionPk"
+                @click="confirming = null"
+              >
+                Cancel
+              </button>
+            </div>
+
             <button
+              v-else
+              type="button"
               class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
                 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
                 hover:border-red-300 hover:bg-red-50 hover:text-red-700
                 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="disconnecting === item.connectionPk"
-              @click="onDisconnect(item)"
+              @click="confirming = item.connectionPk"
             >
-              {{ disconnecting === item.connectionPk ? 'Disconnecting…' : 'Disconnect' }}
+              Disconnect
             </button>
           </li>
         </ul>
