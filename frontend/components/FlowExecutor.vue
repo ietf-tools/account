@@ -108,6 +108,51 @@ function selectDevice(device) {
   focusFirstField()
 }
 
+// --- Captcha -------------------------------------------------------------
+// ak-stage-captcha (Cloudflare Turnstile on the enrollment flow) is satisfied by
+// POSTing the solved `{ token }`; CaptchaStage.vue owns loading the provider
+// script and rendering the widget, and hands the token up as soon as it has one.
+// There's nothing to confirm afterwards, so the stage submits itself rather than
+// rendering a Continue button (this is what authentik's own flow UI does too).
+//
+// The attempt counter guards against a rejected-token loop: Turnstile's managed
+// widget usually clears without any interaction, so if authentik keeps refusing
+// the token (a mis-set secret key, say) the widget would happily re-solve and
+// re-submit forever. After a few tries we stop and let the user retry manually.
+const CAPTCHA_MAX_ATTEMPTS = 3
+const captchaAttempts = ref(0)
+const captchaError = ref('')
+
+function submitCaptcha(token) {
+  captchaAttempts.value += 1
+  if (captchaAttempts.value > CAPTCHA_MAX_ATTEMPTS) {
+    captchaError.value = "We couldn't verify that you're human. Please try again."
+    return
+  }
+  return submit({ token }).catch(() => {})
+}
+
+function retryCaptcha() {
+  captchaAttempts.value = 0
+  captchaError.value = ''
+}
+
+// Stages that render their own actions, or have none at all: no generic Continue
+// button (see the template's submit button).
+const NO_SUBMIT_STAGES = new Set([
+  'ak-stage-email',
+  'ak-stage-access-denied',
+  'ak-stage-session-end',
+  'ak-stage-captcha'
+])
+const showSubmit = computed(() => {
+  if (NO_SUBMIT_STAGES.has(component.value)) {
+    return false
+  }
+  // MFA method chooser: the method buttons are the action.
+  return !(component.value === 'ak-stage-authenticator-validate' && !selectedDevice.value)
+})
+
 const submitLabel = computed(() => {
   if (loading.value) {
     return 'Please wait…'
@@ -222,6 +267,12 @@ watch(challenge, (c) => {
   // Back on the identification stage means we're no longer in a passwordless sub-flow.
   if (c.component === 'ak-stage-identification') {
     passwordlessMode.value = false
+  }
+  // Leaving the captcha stage clears its retry budget (a stage that comes back
+  // with a token error is the same stage, so that case keeps counting).
+  if (c.component !== 'ak-stage-captcha') {
+    captchaAttempts.value = 0
+    captchaError.value = ''
   }
   focusFirstField()
 })
@@ -697,6 +748,22 @@ function signOutEntirely() {
         </ul>
       </template>
 
+      <!-- Captcha (Cloudflare Turnstile on enrollment). CaptchaStage loads the
+           provider script and renders the widget; the solved token is submitted
+           as soon as it arrives, so there's no Continue button here. -->
+      <template v-else-if="component === 'ak-stage-captcha'">
+        <CaptchaStage
+          :challenge="challenge"
+          :submitting="loading"
+          :error-message="captchaError"
+          @token="submitCaptcha"
+          @retry="retryCaptcha"
+        />
+        <p v-if="errorFor('token')" class="text-center text-sm text-red-600">
+          {{ errorFor('token') }}
+        </p>
+      </template>
+
       <!-- Email stage (e.g. recovery link sent) -->
       <template v-else-if="component === 'ak-stage-email'">
         <p class="text-sm text-slate-600">
@@ -761,7 +828,7 @@ function signOutEntirely() {
       </template>
 
       <button
-        v-if="component !== 'ak-stage-email' && component !== 'ak-stage-access-denied' && component !== 'ak-stage-session-end' && !(component === 'ak-stage-authenticator-validate' && !selectedDevice)"
+        v-if="showSubmit"
         type="submit"
         class="btn-primary"
         :disabled="loading"

@@ -95,6 +95,14 @@ fresh cookie jar per `begin`.)
   the backend) to keep everything same-origin. Password/enrollment/recovery flows work; **social
   login can't complete in dev**, and if authentik sets `Secure` cookies they won't stick over
   `http://localhost` — test full sign-in against the deployed same-host environment.
+- **Captcha stage** (`ak-stage-captcha`, currently on enrollment): the challenge carries the
+  provider's `js_url` + public `site_key` (Cloudflare Turnstile), and is satisfied by POSTing the
+  solved `{ token }`. [CaptchaStage.vue](frontend/components/CaptchaStage.vue) injects that script
+  (once per URL, page lifetime), renders the widget explicitly, and emits the token;
+  [FlowExecutor.vue](frontend/components/FlowExecutor.vue) submits it immediately and renders **no**
+  Continue button. Auto-submitting means a persistently rejected token would loop, so it's capped at
+  3 attempts. Being a third-party script, it needs the provider's CDN reachable (ad-blockers break
+  it) and the site key's **allowed domains must include `localhost`** to exercise it in dev.
 - **`autofocus` does not fire** on SPA navigation or Vue stage swaps. Focus programmatically instead —
   FlowExecutor focuses the first field on every `challenge` change (`focusFirstField` + `formEl` ref);
   migrate.vue focuses on mount via a ref. Follow this pattern for new focusable steps.
