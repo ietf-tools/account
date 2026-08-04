@@ -95,7 +95,7 @@ fresh cookie jar per `begin`.)
   the backend) to keep everything same-origin. Password/enrollment/recovery flows work; **social
   login can't complete in dev**, and if authentik sets `Secure` cookies they won't stick over
   `http://localhost` — test full sign-in against the deployed same-host environment.
-- **Captcha stage** (`ak-stage-captcha`, currently on enrollment): the challenge carries the
+- **Captcha stage** (`ak-stage-captcha`, on both the manual and the social enrollment flow): the challenge carries the
   provider's `js_url` + public `site_key` (Cloudflare Turnstile), and is satisfied by POSTing the
   solved `{ token }`. [CaptchaStage.vue](frontend/components/CaptchaStage.vue) injects that script
   (once per URL, page lifetime), renders the widget explicitly, and emits the token;

@@ -88,12 +88,15 @@ flow redirects to its `next` (`/app/login?social=return`), so it rejoins the
 finalize path above; if there's no `next`, the page resolves the user itself.
 
 **First-time sign-ups.** A brand-new user's return additionally runs the source
-*enrollment* flow (`ietf-social-enrollment`) to create the account. It's
-non-interactive (no prompt), so instead of the generic challenge renderer,
-**Rule 7** sends `/if/flow/ietf-social-enrollment/` to `/app/social-enrollment`,
-where [`social-enrollment.vue`](frontend/pages/social-enrollment.vue) shows a
-"Finalizing your account creation" screen while it resumes the plan and follows
-the terminal redirect back to `next` — again rejoining the finalize path.
+*enrollment* flow (`ietf-social-enrollment`) to create the account. **Rule 7**
+sends `/if/flow/ietf-social-enrollment/` to `/app/social-enrollment`, where
+[`social-enrollment.vue`](frontend/pages/social-enrollment.vue) drives it through
+`FlowExecutor` **in resume mode** (same reasoning as the callback flow) under a
+"Finalizing your account creation" heading, following the terminal redirect back
+to `next` — again rejoining the finalize path. Usually there's nothing to render:
+the first challenge *is* that redirect, so the screen just flashes by. But the
+flow can carry interactive stages — notably the **captcha** gating account
+creation — and those render there like on any other flow page.
 
 > This shared-host assumption is what makes the hand-off work. In local dev
 > (frontend on `localhost:3000`, authentik remote) the cross-site session cookie

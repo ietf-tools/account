@@ -1,64 +1,45 @@
 <script setup>
 // First-time social account creation. When a brand-new user returns from a social
 // source, authentik runs the source's enrollment flow (`ietf-social-enrollment`)
-// to create the account. It has no interactive prompt, so authentik would just
-// flash its own flow UI at /if/flow/ietf-social-enrollment/ before redirecting. A
-// Cloudflare rule sends that here instead (see README "Edge routing").
+// to create the account. authentik would render that at
+// /if/flow/ietf-social-enrollment/ in its own UI; a Cloudflare rule sends it here
+// instead (see README "Edge routing").
 //
-// The flow is non-interactive, so rather than the generic challenge renderer we
-// drive it directly and show a friendly "finalizing" screen: resume the plan the
-// source callback built (a fresh begin would cancel it), and the first challenge
-// is already the terminal redirect back to `next` (/app/login?social=return, which
-// login.vue turns into a resolved session).
+// Most of the time the flow is non-interactive: the first challenge is already the
+// terminal redirect back to `next` (/app/login?social=return, which login.vue turns
+// into a resolved session), so all the user sees is the "finalizing" heading flash
+// by. But the flow CAN carry interactive stages — the captcha that gates account
+// creation — so FlowExecutor drives it (embedded under this page's heading) rather
+// than the page GETting the executor once and assuming it's done. RESUME mode: the
+// source callback built the plan, and a fresh begin would cancel it.
 //
 // No auth middleware: the account is still being created. Can't be exercised in
 // local dev (the cross-site source cookie won't stick), same as social login.
-const ak = useAuthentik()
-const runtime = useRuntimeConfig()
+const auth = useAuthStore()
 const router = useRouter()
 
-const error = ref(null)
-
-const slug = runtime.public.flows.socialEnrollment
-const query = import.meta.client ? window.location.search.replace(/^\?/, '') : ''
-
-onMounted(async () => {
-  try {
-    const challenge = await ak(`/flows/executor/${slug}/?query=${encodeURIComponent(query)}`, {
-      method: 'GET'
-    })
-    // Non-interactive flow: the terminal redirect carries us back to `next`.
-    if (isFlowComplete(challenge) && challenge.to) {
-      window.location.assign(challenge.to)
-      return
-    }
-    // No redirect target (or an unexpected stage we don't render here): fall back
-    // to the login page, which resolves the freshly created session.
-    router.push('/login?social=return')
-  } catch (e) {
-    error.value = e?.data?.detail || e?.message || 'We could not finish creating your account.'
+// Only reached when the flow completes with no redirect for FlowExecutor to follow
+// (the normal path is its terminal `to`, back to the `next` the source callback
+// started the flow with). The account exists by then, so adopt the session if the
+// flow signed the user in, and otherwise hand off to login.vue to finalize it.
+function onComplete(user) {
+  if (user) {
+    auth.setUser(user)
+    router.push('/account/applications')
+    return
   }
-})
+  router.push('/login?social=return')
+}
 </script>
 
 <template>
   <div class="card text-center">
-    <h1 class="mb-1 text-xl font-semibold text-slate-900">Finalizing your account creation</h1>
-    <template v-if="error">
-      <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</p>
-      <p class="mt-4 text-sm">
+    <h1 class="mb-6 text-xl font-semibold text-slate-900">Finalizing your account creation</h1>
+    <FlowExecutor kind="socialEnrollment" :resume="true" embedded @complete="onComplete">
+      <template #complete>Just a moment — redirecting you…</template>
+      <template #footer>
         <NuxtLink to="/login" class="link">Back to sign in</NuxtLink>
-      </p>
-    </template>
-    <template v-else>
-      <p class="text-sm text-slate-500">Just a moment — redirecting you…</p>
-      <div class="mt-6 flex justify-center">
-        <span
-          class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500"
-          role="status"
-          aria-label="Redirecting"
-        />
-      </div>
-    </template>
+      </template>
+    </FlowExecutor>
   </div>
 </template>
