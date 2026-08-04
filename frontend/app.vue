@@ -9,6 +9,7 @@ useHead({
 </script>
 
 <template>
+  <DevNoticeBanner />
   <UpdateBanner />
   <NuxtLayout>
     <NuxtPage />
