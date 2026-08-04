@@ -87,7 +87,6 @@ onMounted(load)
             </div>
             <!-- Two-step confirm: swap the Disconnect button for confirm/cancel -->
             <div v-if="confirming === item.connectionPk" class="flex shrink-0 items-center gap-2">
-              <span class="hidden text-xs text-slate-500 sm:block">Disconnect this service?</span>
               <button
                 type="button"
                 class="inline-flex shrink-0 items-center justify-center rounded-lg bg-red-600 px-3 py-2
