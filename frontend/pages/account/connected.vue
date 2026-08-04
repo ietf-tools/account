@@ -15,8 +15,11 @@ const {
   username: githubUsername,
   refreshing: githubRefreshing,
   error: githubError,
+  loginDisabled: githubLoginDisabled,
+  updating: githubUpdating,
   load: loadGithub,
-  refresh: refreshGithub
+  refresh: refreshGithub,
+  setLoginDisabled: setGithubLoginDisabled
 } = useGithubLink()
 
 const disconnecting = ref(null)
@@ -24,6 +27,10 @@ const disconnecting = ref(null)
 // accident — holds the connectionPk of the service awaiting confirmation, or
 // null. Same pattern as the MFA page's device removal.
 const confirming = ref(null)
+// Same idea for turning off GitHub sign-in: it keeps the link but drops a way
+// into the account, so it gets its own confirm with the consequences spelled out.
+// Turning it back *on* is not destructive and goes through unconfirmed.
+const confirmingDisable = ref(null)
 const actionError = ref(null)
 const actionNotice = ref(null)
 
@@ -79,12 +86,37 @@ async function onRefreshGithub() {
     : 'Your GitHub account details were refreshed.'
 }
 
+// Opt in or out of signing in with GitHub. The account stays linked either way —
+// only authentik's source authentication flow changes behaviour (it reads the flag
+// this writes; see backend/routes/github.js).
+async function onSetGithubLogin(disabled) {
+  actionError.value = null
+  actionNotice.value = null
+  const ok = await setGithubLoginDisabled(disabled)
+  if (!ok) {
+    actionError.value = githubError.value
+    return
+  }
+  confirmingDisable.value = null
+  actionNotice.value = disabled
+    ? 'Signing in with GitHub is now turned off. Your account stays linked.'
+    : 'You can sign in with GitHub again.'
+}
+
 async function onDisconnect(item) {
   disconnecting.value = item.connectionPk
   actionError.value = null
   actionNotice.value = null
   try {
+    // Clear the sign-in opt-out before dropping the link, or it outlives the
+    // connection it described and silently blocks sign-in if GitHub is ever
+    // reconnected. Must happen first — the endpoint requires a live connection.
+    // Best-effort: a failure here shouldn't stop the disconnect the user asked for.
+    if (isGithub(item) && githubLoginDisabled.value) {
+      await setGithubLoginDisabled(false)
+    }
     await disconnect(item)
+    confirmingDisable.value = null
     confirming.value = null
   } catch (e) {
     actionError.value = e?.data?.detail || e?.message || 'Could not disconnect that service.'
@@ -133,81 +165,197 @@ onMounted(async () => {
           <li
             v-for="item in connected"
             :key="item.connectionPk"
-            class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+            class="rounded-xl border border-slate-200 bg-slate-50 p-4"
           >
-            <SourceIcon :slug="item.slug" :name="item.name" />
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-slate-900">{{ item.name }}</p>
-              <p v-if="metaLine(item)" class="mt-0.5 text-xs text-slate-500">
-                {{ metaLine(item) }}
-              </p>
-            </div>
-            <!-- Two-step confirm: swap the Disconnect button for confirm/cancel -->
-            <div v-if="confirming === item.connectionPk" class="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                class="inline-flex shrink-0 items-center justify-center rounded-lg bg-red-600 px-3 py-2
-                  text-sm font-semibold text-white shadow-sm transition hover:bg-red-500
-                  disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="disconnecting === item.connectionPk"
-                @click="onDisconnect(item)"
-              >
-                {{ disconnecting === item.connectionPk ? 'Disconnecting…' : 'Yes, disconnect' }}
-              </button>
-              <button
-                type="button"
-                class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
-                  bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
-                  hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="disconnecting === item.connectionPk"
-                @click="confirming = null"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <div v-else class="flex shrink-0 items-center gap-2">
-              <!-- GitHub only: pull the username in from the linked account, for
-                   users who linked it while signed in (no flow ran, so authentik
-                   never wrote it) or who changed it on GitHub since. -->
-              <button
-                v-if="isGithub(item)"
-                type="button"
-                class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
-                  bg-white p-2.5 text-slate-500 shadow-sm transition hover:border-sky-300
-                  hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="githubRefreshing"
-                title="Refresh GitHub username"
-                aria-label="Refresh GitHub username"
-                @click="onRefreshGithub()"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="h-4 w-4"
-                  :class="githubRefreshing ? 'animate-spin' : ''"
-                  aria-hidden="true"
+            <div class="flex items-center gap-3">
+              <SourceIcon :slug="item.slug" :name="item.name" />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <p class="truncate text-sm font-medium text-slate-900">{{ item.name }}</p>
+                  <!-- Linked but not usable to sign in — worth saying on the row
+                       itself, since the whole point is that the two differ. -->
+                  <span
+                    v-if="isGithub(item) && githubLoginDisabled"
+                    class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                  >
+                    Sign-in off
+                  </span>
+                </div>
+                <p v-if="metaLine(item)" class="mt-0.5 text-xs text-slate-500">
+                  {{ metaLine(item) }}
+                </p>
+              </div>
+              <!-- Two-step confirm: swap the actions menu for confirm/cancel -->
+              <div v-if="confirming === item.connectionPk" class="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex shrink-0 items-center justify-center rounded-lg bg-red-600 px-3 py-2
+                    text-sm font-semibold text-white shadow-sm transition hover:bg-red-500
+                    disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="disconnecting === item.connectionPk"
+                  @click="onDisconnect(item)"
                 >
-                  <polyline points="23 4 23 10 17 10" />
-                  <polyline points="1 20 1 14 7 14" />
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                </svg>
-              </button>
+                  {{ disconnecting === item.connectionPk ? 'Disconnecting…' : 'Yes, disconnect' }}
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+                    bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
+                    hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="disconnecting === item.connectionPk"
+                  @click="confirming = null"
+                >
+                  Cancel
+                </button>
+              </div>
 
-              <button
-                type="button"
-                class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
-                  bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
-                  hover:border-red-300 hover:bg-red-50 hover:text-red-700
-                  disabled:cursor-not-allowed disabled:opacity-50"
-                @click="confirming = item.connectionPk"
+              <!-- Every row's actions live behind one "…" menu, so the rows stay
+                   uniform whether a service has one action (Apple, Google) or
+                   several (GitHub). -->
+              <ActionMenu
+                v-else
+                :label="`${item.name} account actions`"
+                :disabled="isGithub(item) && (githubRefreshing || githubUpdating)"
               >
-                Disconnect
-              </button>
+                <template #default="{ close }">
+                  <!-- GitHub only: pull the username in from the linked account,
+                       for users who linked it while signed in (no flow ran, so
+                       authentik never wrote it) or who changed it on GitHub since. -->
+                  <button
+                    v-if="isGithub(item)"
+                    type="button"
+                    class="menu-item"
+                    role="menuitem"
+                    @click="close(); onRefreshGithub()"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="h-4 w-4 shrink-0 text-slate-400"
+                      aria-hidden="true"
+                    >
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    <span>Refresh Username</span>
+                  </button>
+
+                  <button
+                    v-if="isGithub(item) && githubLoginDisabled"
+                    type="button"
+                    class="menu-item"
+                    role="menuitem"
+                    @click="close(); onSetGithubLogin(false)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="h-4 w-4 shrink-0 text-slate-400"
+                      aria-hidden="true"
+                    >
+                      <path d="M9 12.75 11.25 15 15 9.75" />
+                      <circle cx="12" cy="12" r="9" />
+                    </svg>
+                    <span>Enable Sign-In</span>
+                  </button>
+                  <button
+                    v-else-if="isGithub(item)"
+                    type="button"
+                    class="menu-item"
+                    role="menuitem"
+                    @click="close(); confirmingDisable = item.connectionPk"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="h-4 w-4 shrink-0 text-slate-400"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M5.64 5.64l12.72 12.72" />
+                    </svg>
+                    <span>Disable Sign-In</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="menu-item text-red-600"
+                    role="menuitem"
+                    @click="close(); confirming = item.connectionPk"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="h-4 w-4 shrink-0 text-red-400"
+                      aria-hidden="true"
+                    >
+                      <!-- Two link halves pulled apart, with motion ticks. -->
+                      <path d="m18.84 12.25 1.72-1.71a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71" />
+                      <path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71" />
+                      <line x1="8" y1="2" x2="8" y2="5" />
+                      <line x1="2" y1="8" x2="5" y2="8" />
+                      <line x1="16" y1="19" x2="16" y2="22" />
+                      <line x1="19" y1="16" x2="22" y2="16" />
+                    </svg>
+                    <span>Disconnect</span>
+                  </button>
+                </template>
+              </ActionMenu>
+            </div>
+
+            <!-- Disable-sign-in confirm. Full width under the row rather than an
+                 inline swap: the consequences need spelling out, and they don't
+                 fit next to the service name. -->
+            <div
+              v-if="confirmingDisable === item.connectionPk"
+              class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"
+            >
+              <p class="text-sm font-medium text-amber-900">Turn off signing in with GitHub?</p>
+              <p class="mt-1 text-sm text-amber-800">
+                Your GitHub account stays connected and keeps showing on your profile — you just
+                won't be able to use it to sign in. Make sure you can still get in another way
+                (your email and password, or a passkey) first; otherwise you'll need to reset your
+                password to regain access. You can turn this back on from this menu at any time.
+              </p>
+              <div class="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex shrink-0 items-center justify-center rounded-lg bg-amber-600 px-3 py-2
+                    text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500
+                    disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="githubUpdating"
+                  @click="onSetGithubLogin(true)"
+                >
+                  {{ githubUpdating ? 'Turning off…' : 'Yes, disable sign-in' }}
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+                    bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
+                    hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="githubUpdating"
+                  @click="confirmingDisable = null"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </li>
         </ul>

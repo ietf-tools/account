@@ -30,6 +30,34 @@ import { fetchGithubUserById, GithubError } from '../lib/github.js'
  * We never trust anything from the browser: the caller is resolved from their
  * authentik session cookie, and the connection is read back with that same cookie
  * (owner-scoped), so this can only ever touch the caller's own account.
+ *
+ * ── `attributes.github.login_disabled` ─────────────────────────────────────────
+ * Also written here: a per-user opt-out of *signing in* with GitHub while staying
+ * linked (a company-owned GitHub account someone wants shown on their profile but
+ * not treated as a credential). Nothing in this app enforces it — the flag is only
+ * meaningful because authentik checks it. **The enforcing policy lives in
+ * authentik, not here**: an expression policy bound to a Deny stage on the source
+ * authentication flow (`ietf-social-callback`), ordered before its user-login
+ * stage, with `evaluate_on_plan: true`:
+ *
+ *     source = request.context.get("source")
+ *     if not source or "github" not in source.slug.lower():
+ *         return False
+ *     user = request.context.get("pending_user")
+ *     if not user or not user.pk:
+ *         return False
+ *     return bool((user.attributes.get("github") or {}).get("login_disabled"))
+ *
+ * True pulls the Deny stage into the plan and the flow fails (FlowExecutor renders
+ * `ak-stage-access-denied`, so the deny_message is what the user sees); False skips
+ * it and sign-in proceeds. The source slug check is needed because that flow is
+ * shared by all three sources. Deny stage rather than a flow-root policy binding
+ * on purpose: a root denial raises FlowNonApplicableException, which surfaces as a
+ * generic authentik error we don't control.
+ *
+ * Linking is unaffected by that policy without any special-casing, because the
+ * LINK path runs no flow at all (see above) — which is exactly what this feature
+ * needs. Enrollment needs no handling either: no account yet means no attribute.
  */
 export default async function githubRoutes(app) {
   // Where the resolved account lands on the authentik user. Matches the shape the
@@ -105,7 +133,8 @@ export default async function githubRoutes(app) {
       return {
         connected: Boolean(connection),
         username: stored.username ?? null,
-        id: stored.id ?? connection?.identifier ?? null
+        id: stored.id ?? connection?.identifier ?? null,
+        loginDisabled: Boolean(stored.login_disabled)
       }
     } catch (err) {
       if (err instanceof AuthentikError) {
@@ -149,6 +178,49 @@ export default async function githubRoutes(app) {
       return { username: github.login, id: github.id, profileUrl: github.profileUrl }
     } catch (err) {
       if (err instanceof GithubError || err instanceof AuthentikError) {
+        return reply.code(err.status ?? 502).send({ error: err.message })
+      }
+      throw err
+    }
+  })
+
+  // Turn "Sign in with GitHub" off (or back on) for the caller, leaving the link
+  // itself in place. Only sets the flag — the authentik policy documented at the
+  // top of this file is what actually refuses the sign-in.
+  app.post('/login-disabled', async (request, reply) => {
+    const user = await requireCaller(request, reply)
+    if (!user) {
+      return
+    }
+    const disabled = request.body?.disabled
+    if (typeof disabled !== 'boolean') {
+      return reply.badRequest('`disabled` must be true or false.')
+    }
+    const client = clientFromRequest(request)
+    try {
+      const connection = await githubConnection(request.headers.cookie, user, client)
+      if (!connection) {
+        return reply.badRequest('Connect your GitHub account first.')
+      }
+
+      // authentik REPLACES `attributes` wholesale on PATCH — read the full object
+      // and merge, exactly as /refresh does.
+      const full = await getUser(user.pk, client)
+      const github = { ...plainObject(full.attributes?.[ATTRIBUTE_KEY]) }
+      if (disabled) {
+        github.login_disabled = true
+      } else {
+        // Clear rather than store `false`, so the attribute stays clean and the
+        // policy's falsy check is the only thing that matters.
+        delete github.login_disabled
+      }
+      const attributes = { ...full.attributes, [ATTRIBUTE_KEY]: github }
+      await patchUser(user.pk, { attributes }, client)
+
+      request.log.info({ pk: user.pk, disabled }, 'github: sign-in availability changed')
+      return { loginDisabled: disabled }
+    } catch (err) {
+      if (err instanceof AuthentikError) {
         return reply.code(err.status ?? 502).send({ error: err.message })
       }
       throw err

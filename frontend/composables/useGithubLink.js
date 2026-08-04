@@ -15,6 +15,12 @@ export function useGithubLink() {
   const username = ref(null)
   const refreshing = ref(false)
   const error = ref(null)
+  // Whether this account has opted out of signing in with GitHub while staying
+  // linked. Same storage (`attributes.github`), same reason for going through the
+  // backend — but it's authentik's source-flow policy that enforces it, not us.
+  // See backend/routes/github.js.
+  const loginDisabled = ref(false)
+  const updating = ref(false)
 
   // Best-effort: the page works fine without it (the refresh button is how a user
   // recovers), so a failure here just means "nothing on file".
@@ -22,8 +28,10 @@ export function useGithubLink() {
     try {
       const body = await api('/github')
       username.value = body?.username || null
+      loginDisabled.value = Boolean(body?.loginDisabled)
     } catch {
       username.value = null
+      loginDisabled.value = false
     }
   }
 
@@ -46,5 +54,27 @@ export function useGithubLink() {
     }
   }
 
-  return { username, refreshing, error, load, refresh }
+  async function setLoginDisabled(disabled) {
+    updating.value = true
+    error.value = null
+    try {
+      const body = await api('/github/login-disabled', {
+        method: 'POST',
+        body: { disabled }
+      })
+      loginDisabled.value = Boolean(body?.loginDisabled)
+      return true
+    } catch (e) {
+      error.value =
+        e?.data?.error ||
+        e?.data?.detail ||
+        e?.message ||
+        'We could not update your GitHub sign-in setting.'
+      return false
+    } finally {
+      updating.value = false
+    }
+  }
+
+  return { username, refreshing, error, loginDisabled, updating, load, refresh, setLoginDisabled }
 }

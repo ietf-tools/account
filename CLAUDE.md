@@ -136,7 +136,22 @@ fresh cookie jar per `begin`.)
   that isn't a declared stage field, so it never reaches `prompt_data`. **Fix = edit that authentik
   policy** so the email line mirrors the username line: `prompt_data.get("email", request.user.email)`
   (or drop the email block, or re-add a hidden `email` field whose initial value is `request.user.email`).
-- **Admin API token** (`AUTHENTIK_API_TOKEN`) is used **only** by the migration flow, not normal auth.
+- **Per-user "disable GitHub sign-in" is enforced by an authentik policy, not by this app.**
+  [connected.vue](frontend/pages/account/connected.vue) → `POST /github/login-disabled`
+  ([backend/routes/github.js](backend/routes/github.js)) only writes
+  `attributes.github.login_disabled` with the admin token; the flag does nothing until an expression
+  policy on a **Deny stage** in the source authentication flow (`ietf-social-callback`, ordered before
+  its user-login stage, `evaluate_on_plan: true`) reads it — the expression is in that route's header
+  comment. It works because the three source paths differ: **linking runs no flow at all**
+  (`SourceFlowManager.handle_existing_link`), so the policy can block sign-in without touching the
+  link. Use a Deny stage, not a flow-root policy binding — a root denial raises
+  `FlowNonApplicableException` (generic authentik error page) instead of the `ak-stage-access-denied`
+  challenge FlowExecutor already renders. That flow is shared by all three sources, so the expression
+  must check the source slug. Disconnecting clears the flag first (it requires a live connection), or
+  it would outlive the link and silently block a later reconnect.
+- **Admin API token** (`AUTHENTIK_API_TOKEN`) is needed by every backend feature that writes or reads
+  what the browser can't — migration, avatar/portrait, email change, and the GitHub attributes above
+  (`/core/users/me/` omits `attributes` entirely). It is **never** in the auth path.
 
 ## Conventions
 

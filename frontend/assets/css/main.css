@@ -57,4 +57,10 @@
   .link {
     @apply font-medium text-sky-600 hover:text-sky-500;
   }
+  /* One entry in an ActionMenu dropdown. Add `text-red-600` for a destructive
+     entry — the hover tint below stays neutral so it doesn't fight it. */
+  .menu-item {
+    @apply flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700
+      transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
 }
