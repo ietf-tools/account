@@ -23,8 +23,9 @@ const PROVIDERS = [
 ]
 
 // Identify which provider a source/connection is, from its slug or name (instance
-// slugs vary, e.g. "github-enterprise").
-function brandOf(text) {
+// slugs vary, e.g. "github-enterprise"). Exported because the page needs it too —
+// the GitHub row gets an extra action (see useGithubLink).
+export function sourceBrand(text) {
   const hay = (text ?? '').toLowerCase()
   if (hay.includes('github')) {
     return 'github'
@@ -42,7 +43,7 @@ function brandOf(text) {
 // where `realSlugByBrand` (built from the sources list) knows them.
 function availableFrom(connectedList, realSlugByBrand) {
   const connectedBrands = new Set(
-    connectedList.map((item) => brandOf(`${item.slug} ${item.name}`)).filter(Boolean)
+    connectedList.map((item) => sourceBrand(`${item.slug} ${item.name}`)).filter(Boolean)
   )
   return PROVIDERS.filter((provider) => !connectedBrands.has(provider.slug)).map((provider) => ({
     slug: realSlugByBrand?.get(provider.slug) ?? provider.slug,
@@ -103,7 +104,7 @@ export function useConnectedSources() {
       const sourceByPk = new Map(sources.map((source) => [source.pk, source]))
       realSlugByBrand = new Map()
       for (const source of sources) {
-        const brand = brandOf(`${source.slug} ${source.name}`)
+        const brand = sourceBrand(`${source.slug} ${source.name}`)
         if (brand && !realSlugByBrand.has(brand)) {
           realSlugByBrand.set(brand, source.slug)
         }

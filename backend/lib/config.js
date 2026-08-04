@@ -43,6 +43,14 @@ export const config = {
     apiToken: process.env.AUTHENTIK_API_TOKEN ?? ''
   },
 
+  // GitHub REST API, used only to resolve a linked GitHub account's numeric id to
+  // its username (Connected Services → refresh; see routes/github.js). Optional:
+  // without a token the lookup still works but is rate limited to 60/hour for the
+  // whole server. Any classic PAT with no scopes lifts that to 5000/hour.
+  github: {
+    apiToken: process.env.GITHUB_API_TOKEN ?? ''
+  },
+
   // Absolute base URL of the SPA, used to build links in emails the backend
   // sends (currently the email-change confirmation). In production the app is
   // mounted under /app on account.ietf.org, so this includes the /app prefix.
