@@ -103,6 +103,19 @@ fresh cookie jar per `begin`.)
   Continue button. Auto-submitting means a persistently rejected token would loop, so it's capped at
   3 attempts. Being a third-party script, it needs the provider's CDN reachable (ad-blockers break
   it) and the site key's **allowed domains must include `localhost`** to exercise it in dev.
+- **"Stay signed in" (`ak-stage-user-login`) is coupled to server config.** The user login stage runs
+  headlessly *unless* its `remember_me_offset` is non-zero, in which case it emits a challenge that
+  **requires** a `remember_me` boolean back (session then lasts `session_duration + remember_me_offset`;
+  with `session_duration: seconds=0`, "no" means a browser-session cookie). It arrives *last*, after
+  password/MFA, so a checkbox on the sign-in form can't ride along: FlowExecutor keeps the answer in
+  `rememberMe`, set by the checkbox on `ak-stage-password`, and auto-submits it (`autoRemembering`
+  suppresses the flash, and a rejected silent answer falls through to the visible card rather than
+  looping). Flows with no password stage — social callback, enrollment, recovery — render the visible
+  "Stay signed in?" card instead, so the choice is never a silent default. Set the offset on **every**
+  flow ending in a user login stage or behavior varies by sign-in method. Note authentik only writes the
+  `remember_device` known-device cookie on the headless path (`if remember is None`), so enabling the
+  offset disables it. Don't confuse any of this with the identification stage's `enable_remember_me`,
+  which is only a localStorage username prefill in authentik's stock UI and is ignored here.
 - **`autofocus` does not fire** on SPA navigation or Vue stage swaps. Focus programmatically instead —
   FlowExecutor focuses the first field on every `challenge` change (`focusFirstField` + `formEl` ref);
   migrate.vue focuses on mount via a ref. Follow this pattern for new focusable steps.

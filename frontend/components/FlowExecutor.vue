@@ -137,13 +137,38 @@ function retryCaptcha() {
   captchaError.value = ''
 }
 
+// --- "Stay signed in" (ak-stage-user-login) -------------------------------
+// authentik's user login stage normally runs headlessly, but when the stage's
+// `remember_me_offset` is non-zero it emits a challenge and REQUIRES a
+// `remember_me` boolean back (the session then lasts session_duration + offset).
+// It arrives at the very end of the flow, after password/MFA, so a checkbox on
+// the sign-in form can't ride along with it — we hold the answer and reply for
+// the user. Where we never got to ask (social return, enrollment, recovery: no
+// password stage) the stage renders as a visible card instead, so the choice is
+// always the user's rather than a silent default.
+const rememberMe = ref(false)
+const rememberMeAsked = ref(false)
+const rememberMeSubmitted = ref(false)
+
+// True while a pre-answered stage is in flight: the template shows the spinner
+// rather than the card, so the skipped step never flashes.
+const autoRemembering = computed(() => {
+  return component.value === 'ak-stage-user-login' && rememberMeAsked.value
+})
+
+function submitRememberMe(value) {
+  rememberMe.value = value
+  return submit({ remember_me: value }).catch(() => {})
+}
+
 // Stages that render their own actions, or have none at all: no generic Continue
 // button (see the template's submit button).
 const NO_SUBMIT_STAGES = new Set([
   'ak-stage-email',
   'ak-stage-access-denied',
   'ak-stage-session-end',
-  'ak-stage-captcha'
+  'ak-stage-captcha',
+  'ak-stage-user-login'
 ])
 const showSubmit = computed(() => {
   if (NO_SUBMIT_STAGES.has(component.value)) {
@@ -236,6 +261,24 @@ watch(challenge, (c) => {
     nextTick(onSubmit)
     return
   }
+  // The password stage hosts the "keep me signed in" checkbox, which pre-answers
+  // the user login stage at the end of the flow (see submitRememberMe).
+  if (c.component === 'ak-stage-password' && props.kind === 'authentication') {
+    rememberMeAsked.value = true
+  }
+  // Pre-answered "stay signed in" — don't make the user answer twice. If that
+  // silent answer comes back rejected the same stage re-renders, so fall through
+  // to the visible card rather than re-submitting forever (or spinning on
+  // autoRemembering).
+  if (c.component === 'ak-stage-user-login' && rememberMeAsked.value) {
+    if (rememberMeSubmitted.value) {
+      rememberMeAsked.value = false
+    } else {
+      rememberMeSubmitted.value = true
+      nextTick(() => submitRememberMe(rememberMe.value))
+      return
+    }
+  }
   // Seed prompt fields with their initial values.
   if (c.component === 'ak-stage-prompt') {
     for (const field of c.fields ?? []) {
@@ -265,8 +308,12 @@ watch(challenge, (c) => {
       })
   }
   // Back on the identification stage means we're no longer in a passwordless sub-flow.
+  // It also means a fresh pass at the flow (a "Not you?" restart), so the
+  // stay-signed-in one-shots reset — the user's ticked preference is kept.
   if (c.component === 'ak-stage-identification') {
     passwordlessMode.value = false
+    rememberMeAsked.value = false
+    rememberMeSubmitted.value = false
   }
   // Leaving the captcha stage clears its retry budget (a stage that comes back
   // with a token error is the same stage, so that case keeps counting).
@@ -505,9 +552,9 @@ function signOutEntirely() {
       <slot name="complete">You're all set.</slot>
     </div>
 
-    <!-- Initial load — also covers the auto-consent hand-off (see autoConsenting),
-         so the redundant consent card never flashes before it advances. -->
-    <div v-else-if="!challenge || autoConsenting" class="flex flex-col items-center gap-3 py-6 text-sm text-slate-400">
+    <!-- Initial load — also covers the stages we advance on the user's behalf
+         (autoConsenting, autoRemembering), so neither skipped card flashes. -->
+    <div v-else-if="!challenge || autoConsenting || autoRemembering" class="flex flex-col items-center gap-3 py-6 text-sm text-slate-400">
       <span
         class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500"
         role="status"
@@ -583,6 +630,13 @@ function signOutEntirely() {
           <input v-model="model.password" type="password" class="field-input" autocomplete="current-password" />
           <p v-if="errorFor('password')" class="mt-1 text-sm text-red-600">{{ errorFor('password') }}</p>
         </div>
+        <!-- Pre-answers the ak-stage-user-login stage at the end of the flow. Only
+             on a real sign-in: on a re-auth password prompt (password change) the
+             question would be meaningless. -->
+        <label v-if="kind === 'authentication'" class="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+          <input v-model="rememberMe" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
+          <span>Keep me signed in</span>
+        </label>
       </template>
 
       <!-- MFA / authenticator validation. authentik offers one challenge per
@@ -815,6 +869,35 @@ function signOutEntirely() {
             @click="signOutEntirely"
           >
             Sign out of IETF Account entirely
+          </button>
+        </div>
+      </template>
+
+      <!-- "Stay signed in?" — authentik's user login stage, which only becomes a
+           visible challenge when the stage's remember_me_offset is non-zero. We
+           only get here when there was no password stage to host the checkbox
+           (social return, enrollment, recovery); a password sign-in answers this
+           from the checkbox above and never renders it. -->
+      <template v-else-if="component === 'ak-stage-user-login'">
+        <p class="text-sm text-slate-600">
+          Stay signed in on this device? Choose No on a shared or public computer.
+        </p>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="btn-primary flex-1"
+            :disabled="loading"
+            @click="submitRememberMe(true)"
+          >
+            Yes, keep me signed in
+          </button>
+          <button
+            type="button"
+            class="btn-social flex-1 justify-center"
+            :disabled="loading"
+            @click="submitRememberMe(false)"
+          >
+            No
           </button>
         </div>
       </template>
