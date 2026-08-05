@@ -161,6 +161,14 @@ function submitRememberMe(value) {
   return submit({ remember_me: value }).catch(() => {})
 }
 
+// The visible stay-signed-in card asks its own question, so it carries its own
+// heading and drops the "Continue as …" line — the host page's title and the
+// pending user belong to the sign-in step that is already behind us. Not while
+// autoRemembering: that's the spinner path, where the header stays as it was.
+const askingRememberMe = computed(() => {
+  return component.value === 'ak-stage-user-login' && !autoRemembering.value
+})
+
 // Stages that render their own actions, or have none at all: no generic Continue
 // button (see the template's submit button).
 const NO_SUBMIT_STAGES = new Set([
@@ -526,9 +534,9 @@ function signOutEntirely() {
   <div :class="{ card: !embedded }">
     <template v-if="!embedded">
       <h1 class="mb-1 text-xl font-semibold text-slate-900">
-        {{ title || challenge?.flow_info?.title || 'Authentik' }}
+        {{ askingRememberMe ? 'Stay signed in?' : (title || challenge?.flow_info?.title || 'Authentik') }}
       </h1>
-      <p v-if="challenge?.pending_user" class="mb-6 text-sm text-slate-500">
+      <p v-if="challenge?.pending_user && !askingRememberMe" class="mb-6 text-sm text-slate-500">
         Continue as {{ challenge.pending_user }}
         <button type="button" class="link" :disabled="loading" @click="begin">(Not you?)</button>
       </p>
