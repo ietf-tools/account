@@ -1,8 +1,19 @@
+<div align="center">
+
+<img src="https://static.ietf.org/logos/icon-account.svg" alt="IETF Account" height="125" />
+
 # IETF Account
 
-PRIVATE — a fully custom, headless front-end for [authentik](https://goauthentik.io).
+[![Release](https://img.shields.io/github/release/ietf-tools/account.svg?style=flat&maxAge=300)](https://github.com/ietf-tools/account/releases)
+[![License](https://img.shields.io/github/license/ietf-tools/account)](https://github.com/ietf-tools/account/blob/main/LICENSE)
+![Node Version](https://img.shields.io/badge/node.js-26-green?logo=node.js&logoColor=white)
+![Vue Version](https://img.shields.io/badge/vue-3-green?logo=vue.js&logoColor=white)
 
-authentik runs in the background as the identity source of truth; this app owns
+##### A fully custom, headless front-end for [authentik](https://goauthentik.io)
+
+</div>
+
+Authentik runs in the background as the identity source of truth; this app owns
 the entire public-facing user experience (sign in, register, password reset,
 legacy account migration) by driving authentik's **Flow Executor API** **directly
 from the browser**. There is no admin surface here — admins use the authentik
