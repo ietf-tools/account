@@ -22,6 +22,15 @@ const {
   setLoginDisabled: setGithubLoginDisabled
 } = useGithubLink()
 
+// The Datatracker section is an offer to migrate, so it's only shown to accounts
+// that haven't been linked yet. `attributes.datatracker.linked` isn't visible to
+// the browser (/core/users/me/ omits attributes), hence the backend read.
+const {
+  linked: datatrackerLinked,
+  loaded: datatrackerLoaded,
+  load: loadDatatracker
+} = useDatatrackerLink()
+
 const disconnecting = ref(null)
 // Two-step confirm so a destructive click can't unlink a sign-in method by
 // accident — holds the connectionPk of the service awaiting confirmation, or
@@ -126,6 +135,7 @@ async function onDisconnect(item) {
 }
 
 onMounted(async () => {
+  loadDatatracker()
   await load()
   // Only worth a backend round-trip when GitHub is actually linked.
   if (connected.value.some(isGithub)) {
@@ -382,5 +392,23 @@ onMounted(async () => {
         </ul>
       </section>
     </div>
+
+    <!-- Datatracker: only an offer to migrate, so it's hidden once linked (and
+         until we know, to avoid flashing it at accounts that already are). -->
+    <section v-if="datatrackerLoaded && !datatrackerLinked" class="mt-8 border-t border-slate-100 pt-4">
+      <h2 class="text-base font-semibold text-slate-900">Datatracker</h2>
+      <p class="mt-1 text-sm text-slate-500">Legacy datatracker accounts created before the introduction of IETF Accounts can be migrated and linked to your IETF Account.</p>
+
+      <div class="mt-4 flex justify-end">
+        <button
+          type="button"
+          class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+            bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
+            hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+        >
+          Migrate Datatracker Account
+        </button>
+      </div>
+    </section>
   </div>
 </template>

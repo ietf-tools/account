@@ -1,4 +1,9 @@
 <script setup>
+// Imported explicitly because it's used through `<component :is>` below: Nuxt's
+// components are compile-time auto-imports, not app-level registrations, so a bare
+// `:is="'NuxtLink'"` resolves to nothing and renders an inert <nuxtlink> element.
+import { NuxtLink } from '#components'
+
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
@@ -16,6 +21,12 @@ const signInError = ref(null)
 // flow has moved on to verifying identity (MFA), "Stay signed in?" or the closing
 // redirect, offering to create an account is noise.
 const FORM_STAGES = new Set(['ak-stage-identification', 'ak-stage-password'])
+
+// Legacy Datatracker migration isn't open to the public yet: production shows the
+// entry point badged "coming soon" and inert (rendered as a plain div, so there's no
+// link to click, middle-click or focus), while dev keeps it a real link so the flow
+// stays testable.
+const migrateEnabled = import.meta.dev
 
 // A third-party app sent the user here to sign in (authentik redirected its
 // /if/flow/<slug>/?client_id=… to us — see the edge rule in README). Resume
@@ -95,7 +106,13 @@ onMounted(async () => {
         </div>
       </div>
       <div class="mt-4">
-        <NuxtLink to="/migrate" class="btn-social w-full">
+        <component
+          :is="migrateEnabled ? NuxtLink : 'div'"
+          :to="migrateEnabled ? '/migrate' : undefined"
+          class="btn-social w-full"
+          :class="migrateEnabled ? '' : 'cursor-default hover:bg-white active:translate-y-0'"
+          :aria-disabled="migrateEnabled ? undefined : 'true'"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
             <path
               stroke-linecap="round"
@@ -104,7 +121,13 @@ onMounted(async () => {
             />
           </svg>
           <span>Legacy Datatracker Account</span>
-        </NuxtLink>
+          <span
+            v-if="!migrateEnabled"
+            class="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-rose-700"
+          >
+            Coming soon
+          </span>
+        </component>
       </div>
     </template>
     <template #footer="{ component }">

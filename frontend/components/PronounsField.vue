@@ -1,55 +1,59 @@
 <script setup>
 // Custom editor for the free-text `attributes.pronouns` prompt field. authentik
 // stores pronouns as a single string; we present the three common options as
-// checkboxes plus a free-text box for anything else, and (de)serialise to/from a
-// comma-separated string so the underlying prompt field is unchanged.
+// radio buttons plus a "Custom" option with a free-text box, so exactly one
+// choice is possible. The underlying prompt field is unchanged — it just receives
+// the selected option, the custom text, or an empty string.
 //
-//   "he/him, they/them, custom value"  <->  [x] he/him  [ ] she/her  [x] they/them  + "custom value"
+//   "they/them"    <->  ( ) he/him  ( ) she/her  (•) they/them
+//   "ze/zir"       <->  (•) Custom  + "ze/zir"
 const props = defineProps({
   modelValue: { type: String, default: '' }
 })
 const emit = defineEmits(['update:modelValue'])
 
 const OPTIONS = ['he/him', 'she/her', 'they/them']
+// Sentinels for the two choices that aren't one of the known options.
+const NONE = ''
+const CUSTOM = 'custom'
 
-const checked = reactive({
-  'he/him': false,
-  'she/her': false,
-  'they/them': false
-})
+// Radios need a shared `name` for native grouping/keyboard behaviour, and it must
+// be unique per instance.
+const groupName = `pronouns-${useId()}`
+
+const selected = ref(NONE)
 const custom = ref('')
+const customInput = ref(null)
 
-// Build the combined comma-separated string from the local state: the checked
-// known options (in canonical order) followed by any custom text.
+// The single value to store: the picked option, the custom text, or nothing.
 function compose() {
-  const parts = OPTIONS.filter((option) => checked[option])
-  const extra = custom.value.trim()
-  if (extra) {
-    parts.push(extra)
+  if (selected.value === CUSTOM) {
+    return custom.value.trim()
   }
-  return parts.join(', ')
+  if (OPTIONS.includes(selected.value)) {
+    return selected.value
+  }
+  return ''
 }
 
-// Parse an incoming value: matched known options drive the checkboxes, everything
-// else falls through to the custom text box.
+// Parse an incoming value: a known option selects its radio, anything else lands
+// in Custom (which is also where a legacy multi-value string like
+// "he/him, they/them" ends up — kept verbatim rather than silently dropped).
 function parse(value) {
-  for (const option of OPTIONS) {
-    checked[option] = false
+  const text = (value ?? '').trim()
+  if (!text) {
+    selected.value = NONE
+    custom.value = ''
+    return
   }
-  const leftovers = []
-  const segments = (value ?? '')
-    .split(',')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0)
-  for (const segment of segments) {
-    const match = OPTIONS.find((option) => option.toLowerCase() === segment.toLowerCase())
-    if (match) {
-      checked[match] = true
-    } else {
-      leftovers.push(segment)
-    }
+  const match = OPTIONS.find((option) => option.toLowerCase() === text.toLowerCase())
+  if (match) {
+    selected.value = match
+    custom.value = ''
+    return
   }
-  custom.value = leftovers.join(', ')
+  selected.value = CUSTOM
+  custom.value = text
 }
 
 // Seed from the initial/external value. Re-parse only on a genuine external
@@ -65,30 +69,75 @@ watch(
   { immediate: true }
 )
 
-// Push the composed string up whenever a box is toggled or the custom text edited.
-watch([checked, custom], () => {
+// Push the composed string up whenever the choice or the custom text changes.
+watch([selected, custom], () => {
   emit('update:modelValue', compose())
-}, { deep: true })
+})
+
+// Picking Custom is only half the action — put the cursor where the rest of it
+// goes.
+async function onSelectCustom() {
+  await nextTick()
+  customInput.value?.focus()
+}
 </script>
 
 <template>
-  <div class="space-y-2">
-    <div class="flex flex-col gap-2">
-      <label
-        v-for="option in OPTIONS"
-        :key="option"
-        class="flex items-center gap-2 text-sm text-slate-700"
-      >
-        <input v-model="checked[option]" type="checkbox" class="rounded border-slate-300" />
-        <span>{{ option }}</span>
+  <div class="flex flex-col gap-2">
+    <label
+      v-for="option in OPTIONS"
+      :key="option"
+      class="flex items-center gap-2 text-sm text-slate-700"
+    >
+      <input
+        v-model="selected"
+        type="radio"
+        :name="groupName"
+        :value="option"
+        class="border-slate-300"
+      />
+      <span>{{ option }}</span>
+    </label>
+
+    <!-- The custom option and the value it takes share one row. The text input is
+         deliberately NOT inside the label: a label isn't activated by clicks on an
+         interactive descendant, so it would look clickable and do nothing. -->
+    <div class="flex items-center gap-2 text-sm text-slate-700">
+      <label class="flex items-center">
+        <input
+          v-model="selected"
+          type="radio"
+          :name="groupName"
+          :value="CUSTOM"
+          class="border-slate-300"
+          @change="onSelectCustom"
+        />
+        <span class="sr-only">Use custom pronouns</span>
       </label>
+      <input
+        ref="customInput"
+        v-model="custom"
+        type="text"
+        maxlength="30"
+        placeholder="Custom (e.g. ze/zir)"
+        aria-label="Custom pronouns"
+        class="field-input flex-1 disabled:cursor-not-allowed disabled:bg-slate-50
+          disabled:text-slate-400"
+        :disabled="selected !== CUSTOM"
+      />
     </div>
-    <input
-      v-model="custom"
-      type="text"
-      maxlength="30"
-      placeholder="Custom (e.g. ze/zir)"
-      class="field-input"
-    />
+
+    <!-- Radios can't be un-picked, so there has to be a way back to "no pronouns
+         on file". -->
+    <label class="flex items-center gap-2 text-sm text-slate-700">
+      <input
+        v-model="selected"
+        type="radio"
+        :name="groupName"
+        :value="NONE"
+        class="border-slate-300"
+      />
+      <span>Unspecified / Prefer not to say</span>
+    </label>
   </div>
 </template>
