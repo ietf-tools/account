@@ -5,13 +5,14 @@
 // /if/flow/ietf-social-enrollment/ in its own UI; a Cloudflare rule sends it here
 // instead (see README "Edge routing").
 //
-// Most of the time the flow is non-interactive: the first challenge is already the
-// terminal redirect back to `next` (/app/login?social=return, which login.vue turns
-// into a resolved session), so all the user sees is the "finalizing" heading flash
-// by. But the flow CAN carry interactive stages — the captcha that gates account
-// creation — so FlowExecutor drives it (embedded under this page's heading) rather
-// than the page GETting the executor once and assuming it's done. RESUME mode: the
-// source callback built the plan, and a fresh begin would cancel it.
+// The flow carries interactive stages — the Note Well agreement and the captcha
+// that gate account creation — so FlowExecutor drives it (embedded under this
+// page's heading) rather than the page GETting the executor once and assuming it's
+// done. RESUME mode: the source callback built the plan, and a fresh begin would
+// cancel it. Strip those stages back out of the flow and it goes non-interactive
+// again: the first challenge is then already the terminal redirect back to `next`
+// (/app/login?social=return, which login.vue turns into a resolved session), and
+// all the user sees is this heading flashing by.
 //
 // No auth middleware: the account is still being created. Can't be exercised in
 // local dev (the cross-site source cookie won't stick), same as social login.
@@ -34,7 +35,9 @@ function onComplete(user) {
 
 <template>
   <div class="card text-center">
-    <h1 class="mb-6 text-xl font-semibold text-slate-900">Finalizing your account creation</h1>
+    <!-- Reads for both faces of this page: the agreement/captcha stages the flow
+         renders here, and the redirect-only pass where it just flashes by. -->
+    <h1 class="mb-6 text-xl font-semibold text-slate-900">Finish setting up your account</h1>
     <FlowExecutor kind="socialEnrollment" :resume="true" embedded @complete="onComplete">
       <template #complete>Just a moment — redirecting you…</template>
       <template #footer>

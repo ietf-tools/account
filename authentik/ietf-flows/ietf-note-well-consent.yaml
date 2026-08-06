@@ -1,0 +1,199 @@
+# Note Well / Privacy Statement agreement — an extra stage on BOTH enrollment
+# flows (`ietf-enrollment`, the manual sign-up form, and `ietf-social-enrollment`,
+# first-time account creation from Apple/GitHub/Google), bound immediately before
+# the captcha stage.
+#
+# Unlike the other files in this directory, this is NOT an export of live config —
+# it's a hand-written blueprint you can apply (or copy stage by stage in the admin
+# UI) to add the stage. Three objects and two bindings:
+#
+#   * a checkbox prompt carrying the notice text (links included — the app renders
+#     the label as markup),
+#   * a validation policy on the prompt stage — the real gate. authentik builds
+#     every checkbox prompt as a DRF BooleanField with `required=False`, so its
+#     `required` flag does NOT force the box to be ticked; an unticked box is a
+#     valid response and would otherwise sail straight through,
+#   * a second expression policy on each flow's *user write* binding, which stamps
+#     the agreement + timestamp onto the account being created.
+#
+# !! BEFORE APPLYING: set the `order` on the two flowstagebinding entries below.
+# They must sit immediately BEFORE that flow's captcha binding (and therefore
+# before its user write binding, or the account is created before the user has
+# agreed and nothing records the agreement). Check the live orders under
+# Flows → <flow> → Stage Bindings; the placeholders here are almost certainly
+# wrong for your instance. `state: present` will not renumber the other bindings.
+context: {}
+entries:
+# --- The notice itself ------------------------------------------------------
+# A checkbox whose label is the agreement sentence. The label carries anchor
+# markup: FlowExecutor.vue renders prompt labels as HTML and forces links inside
+# them to open in a new tab, so reading the Note Well doesn't abandon the flow.
+- attrs:
+    field_key: note_well_agreed
+    initial_value: ''
+    initial_value_expression: false
+    label: 'I agree to follow IETF processes and policies, a reminder of which is
+      given in the <a href="https://www.ietf.org/about/note-well/">IETF Note Well</a>,
+      and in doing so I consent to the use of my information in accordance with the
+      <a href="https://www.ietf.org/privacy-statement/">IETF/IRTF/IAB Privacy Statement</a>.'
+    name: ietf-enrollment-field-note-well
+    order: 100
+    placeholder: ''
+    placeholder_expression: false
+    # Kept true so the client knows to require it (the app blocks submit on an
+    # unticked required checkbox); authentik itself ignores this for checkboxes —
+    # see the validation policy below.
+    required: true
+    sub_text: ''
+    type: checkbox
+  conditions: []
+  identifiers:
+    pk: adb8dac7-d050-4b45-be70-14a8382be132
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+
+# --- The gate ---------------------------------------------------------------
+# Attached to the prompt stage as a *validation policy* (not a flow binding), so a
+# failure re-renders the stage with the message in `non_field_errors` — which the
+# app already displays above the form.
+- attrs:
+    execution_logging: false
+    expression: |
+      # An unticked box is a valid response as far as authentik's prompt serializer
+      # is concerned (checkbox prompts are always required=False), so this policy is
+      # what actually stops the flow.
+      if request.context["prompt_data"].get("note_well_agreed", False):
+          return True
+      ak_message("You must agree to the IETF Note Well and Privacy Statement to continue.")
+      return False
+    name: ietf-enrollment-require-note-well
+  conditions: []
+  identifiers:
+    pk: 94106fa1-ba82-4444-96d8-7e331aea7daf
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+
+# --- Recording the agreement ------------------------------------------------
+# Bound to each flow's user write binding, exactly like
+# ietf-enrollment-set-username-from-email: prompt_data keys prefixed `attributes.`
+# are written into `user.attributes` by the write stage (a dotted path nests), so
+# this is what persists the answer. The checkbox's own key isn't prefixed, so the
+# write stage discards it.
+#
+# Result on the created user:
+#   attributes.note_well.agreed     = true
+#   attributes.note_well.agreed_at  = "2026-08-06T14:03:11.512+00:00"  (ISO 8601, UTC)
+#
+# Returns True unconditionally: a policy on a stage binding that returns False
+# SKIPS the stage, which here would mean not creating the user at all. The prompt
+# stage's validation policy is the gate; this only records.
+- attrs:
+    execution_logging: false
+    expression: |
+      from datetime import datetime, timezone
+
+      prompt_data = request.context["prompt_data"]
+      if prompt_data.get("note_well_agreed", False):
+          prompt_data["attributes.note_well.agreed"] = True
+          prompt_data["attributes.note_well.agreed_at"] = datetime.now(timezone.utc).isoformat()
+      return True
+    name: ietf-enrollment-record-note-well
+  conditions: []
+  identifiers:
+    pk: a7e57471-d3e4-4329-a7ee-b0ee22ddec7b
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+
+# --- The stage --------------------------------------------------------------
+- attrs:
+    fields:
+    - adb8dac7-d050-4b45-be70-14a8382be132
+    validation_policies:
+    - 94106fa1-ba82-4444-96d8-7e331aea7daf
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-prompt-note-well
+    pk: 2fc5a10f-cb98-4868-8521-1c94ec802c29
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+
+# --- Bindings: manual enrollment (ietf-enrollment) --------------------------
+# ORDER: set this to sit immediately before the captcha binding. See the header.
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 1
+    pk: c2394ecf-035b-4110-9c47-2995041c0c2d
+    stage: 2fc5a10f-cb98-4868-8521-1c94ec802c29
+    target: 18e7dd30-f048-40d8-8dad-780c2c78c653
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+
+# Record policy on ietf-enrollment's user write binding (which already carries
+# ietf-enrollment-set-username-from-email at order 0).
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 1
+    pk: a64ac42c-9013-4a84-ba08-c206ddccea76
+    policy: a7e57471-d3e4-4329-a7ee-b0ee22ddec7b
+    target: 699c532f-b3e9-4cec-8ba0-156a8eb21f0c
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+
+# --- Bindings: social enrollment (ietf-social-enrollment) -------------------
+# ORDER: set this to sit immediately before the captcha binding. See the header.
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 5
+    pk: ad1f4374-7aa5-4e7d-97b0-8e425cb7ee30
+    stage: 2fc5a10f-cb98-4868-8521-1c94ec802c29
+    target: cd483331-30bd-400f-afb7-1a426a33deb6
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+
+# Record policy on ietf-social-enrollment's user write binding (which already
+# carries ietf-enrollment-set-username-from-email at order 0).
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 1
+    pk: 67981ab5-4622-4345-926e-1e314bba8d0d
+    policy: a7e57471-d3e4-4329-a7ee-b0ee22ddec7b
+    target: 06d2a3d3-248c-4c39-9131-758080551273
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/description: IETF Note Well agreement stage (enrollment)
+  name: ietf-note-well-consent
+version: 1

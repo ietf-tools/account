@@ -246,6 +246,9 @@ watch(challenge, (c) => {
     delete model[key]
   }
   uidError.value = ''
+  for (const key of Object.keys(promptErrors)) {
+    delete promptErrors[key]
+  }
   selectedDevice.value = null
   if (!c) {
     return
@@ -290,7 +293,14 @@ watch(challenge, (c) => {
   // Seed prompt fields with their initial values.
   if (c.component === 'ak-stage-prompt') {
     for (const field of c.fields ?? []) {
-      model[field.field_key] = field.initial_value ?? (field.type === 'checkbox' ? false : '')
+      if (field.type === 'checkbox') {
+        // authentik serializes every initial_value as a string, so a checkbox
+        // arrives as '' / 'true' / anything — its own flow UI treats non-empty as
+        // checked. Coerce, or we'd POST '' where authentik wants a boolean.
+        model[field.field_key] = Boolean(field.initial_value) && field.initial_value !== 'false'
+        continue
+      }
+      model[field.field_key] = field.initial_value ?? ''
     }
   }
   // MFA: with a single enrolled device there's nothing to choose — go straight
@@ -359,6 +369,57 @@ function errorFor(key) {
 // and whenever the stage changes (see the challenge watcher above).
 const uidError = ref('')
 
+// --- Prompt stage: required checkboxes ------------------------------------
+// Client-side warnings for prompt fields, keyed by field_key (server-side ones
+// still come from response_errors). Cleared on stage change and as the user acts.
+const promptErrors = reactive({})
+
+function clearPromptError(key) {
+  delete promptErrors[key]
+}
+
+// A required checkbox has to be TICKED, not merely answered: authentik builds every
+// checkbox prompt as a BooleanField with required=False, so `false` is a perfectly
+// valid response to it and only a validation policy on the stage rejects one. That
+// policy is the real gate (see authentik/ietf-flows/ietf-note-well-consent.yaml —
+// the Note Well agreement on both enrollment flows); this just fails it inline
+// instead of via a round-trip.
+function validatePrompt() {
+  let ok = true
+  for (const field of challenge.value?.fields ?? []) {
+    if (field.type === 'checkbox' && field.required && !model[field.field_key]) {
+      promptErrors[field.field_key] = 'Please tick this box to continue.'
+      ok = false
+    }
+  }
+  return ok
+}
+
+// Prompt labels can carry markup — the Note Well agreement links out to ietf.org —
+// and are rendered with v-html. Following such a link in place would abandon the
+// flow, so force every anchor into a new tab. (Inside the checkbox's <label> the
+// links are safe to click: the HTML spec skips label activation for interactive
+// descendants, so reading the notice doesn't tick the box.) DOMParser only parses —
+// this is the same trust in authentik's copy that the raw v-html already implies.
+const richLabels = new Map()
+function richLabel(html) {
+  const source = html ?? ''
+  if (!source.includes('<')) {
+    return source
+  }
+  let parsed = richLabels.get(source)
+  if (parsed === undefined) {
+    const doc = new DOMParser().parseFromString(source, 'text/html')
+    for (const anchor of doc.body.querySelectorAll('a')) {
+      anchor.setAttribute('target', '_blank')
+      anchor.setAttribute('rel', 'noopener noreferrer')
+    }
+    parsed = doc.body.innerHTML
+    richLabels.set(source, parsed)
+  }
+  return parsed
+}
+
 function validateIdentification() {
   const value = (model.uid_field ?? '').trim()
   const isEmail = challenge.value?.user_fields?.includes('email')
@@ -376,6 +437,10 @@ function validateIdentification() {
 
 async function onSubmit() {
   if (component.value === 'ak-stage-identification' && !validateIdentification()) {
+    return
+  }
+
+  if (component.value === 'ak-stage-prompt' && !validatePrompt()) {
     return
   }
 
@@ -706,13 +771,30 @@ function signOutEntirely() {
       <template v-else-if="component === 'ak-stage-prompt'">
         <div v-for="field in challenge.fields" :key="field.field_key">
           <template v-if="field.type === 'static' || field.type === 'hidden'">
-            <p v-if="field.type === 'static'" class="text-sm text-slate-600" v-html="field.initial_value" />
+            <p
+              v-if="field.type === 'static'"
+              class="rich-text text-sm text-slate-600"
+              v-html="richLabel(field.initial_value)"
+            />
           </template>
+          <!-- Checkbox: the label sits beside the box rather than wrapping it, so a
+               long one (the Note Well agreement on enrollment) doesn't run under the
+               control, and its links stay clickable — see richLabel. -->
           <template v-else-if="field.type === 'checkbox'">
-            <label class="flex items-center gap-2 text-sm text-slate-700">
-              <input v-model="model[field.field_key]" type="checkbox" class="rounded border-slate-300" />
-              <span v-html="field.label" />
-            </label>
+            <div class="flex items-start gap-2.5">
+              <input
+                :id="`prompt-${field.field_key}`"
+                v-model="model[field.field_key]"
+                type="checkbox"
+                class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                @change="clearPromptError(field.field_key)"
+              />
+              <label
+                :for="`prompt-${field.field_key}`"
+                class="rich-text cursor-pointer text-sm text-slate-700"
+                v-html="richLabel(field.label)"
+              />
+            </div>
           </template>
           <template v-else-if="field.type === 'dropdown'">
             <label class="field-label">{{ field.label }}</label>
@@ -735,7 +817,12 @@ function signOutEntirely() {
               class="field-input"
             />
           </template>
-          <p v-if="errorFor(field.field_key)" class="mt-1 text-sm text-red-600">{{ errorFor(field.field_key) }}</p>
+          <p
+            v-if="promptErrors[field.field_key] || errorFor(field.field_key)"
+            class="mt-1 text-sm text-red-600"
+          >
+            {{ promptErrors[field.field_key] || errorFor(field.field_key) }}
+          </p>
         </div>
       </template>
 

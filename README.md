@@ -114,6 +114,37 @@ creation — and those render there like on any other flow page.
 > won't stick, so exercise social login (and its interactive callback) against a
 > same-host deployment.
 
+### Note Well agreement (both enrollment paths)
+
+Every new account — whether it came from the sign-up form (`ietf-enrollment`) or
+from a first social sign-in (`ietf-social-enrollment`) — has to agree to follow
+IETF processes and policies (the [Note Well](https://www.ietf.org/about/note-well/)
+and the [Privacy Statement](https://www.ietf.org/privacy-statement/)) before the
+account is created. That's a **prompt stage carrying a single checkbox**, bound to
+both flows immediately before their captcha stage. The notice text — links included
+— lives in the prompt's label in authentik, not in this app:
+[`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) renders prompt labels as
+markup and forces links inside them to open in a new tab, so reading the Note Well
+doesn't abandon the flow.
+
+A checkbox prompt's `required` flag does **not** make authentik insist on a ticked
+box (it builds every checkbox as a serializer field with `required=False`, so
+`false` is a valid answer), so the stage carries a **validation policy** that
+rejects an unticked one — that policy is the gate. The app also blocks submit
+client-side for the inline message. A second expression policy, on each flow's user
+write binding, stamps the agreement onto the account being created:
+`attributes.note_well.agreed` plus an ISO 8601 `attributes.note_well.agreed_at`.
+
+All of it — prompt, both policies, stage, bindings — is in
+[`authentik/ietf-flows/ietf-note-well-consent.yaml`](authentik/ietf-flows/ietf-note-well-consent.yaml),
+whose header explains the one value you must set per instance: the binding `order`,
+which has to place the stage before the captcha (and so before the user write
+stage, or the account exists before anyone agreed).
+
+> Accounts crossing over from the legacy Django system don't run an enrollment flow
+> at all — [`backend/routes/migration.js`](backend/routes/migration.js) creates them
+> with the admin API — so this stage never fires for them.
+
 ### Email confirmation (manual enrollment)
 
 A manually created account gets a confirmation email whose link points at

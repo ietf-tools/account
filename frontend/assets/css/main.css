@@ -57,6 +57,13 @@
   .link {
     @apply font-medium text-sky-600 hover:text-sky-500;
   }
+  /* Copy that arrives from authentik as markup and is injected with v-html (prompt
+     labels, static prompt fields — e.g. the Note Well agreement's links). Styling
+     has to be reachable from the wrapper, since the injected nodes carry no classes
+     of ours. */
+  .rich-text a {
+    @apply font-medium text-sky-600 underline underline-offset-2 hover:text-sky-500;
+  }
   /* One entry in an ActionMenu dropdown. Add `text-red-600` for a destructive
      entry — the hover tint below stays neutral so it doesn't fight it. */
   .menu-item {

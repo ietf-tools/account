@@ -103,6 +103,21 @@ fresh cookie jar per `begin`.)
   Continue button. Auto-submitting means a persistently rejected token would loop, so it's capped at
   3 attempts. Being a third-party script, it needs the provider's CDN reachable (ad-blockers break
   it) and the site key's **allowed domains must include `localhost`** to exercise it in dev.
+- **Note Well agreement: a prompt checkbox's `required` is not a gate.** Both enrollment flows carry a
+  prompt stage (one checkbox, notice text + links in its **label**) bound right before the captcha —
+  see [ietf-note-well-consent.yaml](authentik/ietf-flows/ietf-note-well-consent.yaml). authentik builds
+  every checkbox prompt as a `BooleanField(required=False)`, so an unticked box is a *valid* response
+  no matter what the prompt's `required` flag says: the stage's **validation policy** is what rejects
+  it (failure lands in `non_field_errors`, which FlowExecutor already renders). FlowExecutor blocks
+  submit for required-but-unticked checkboxes too (`validatePrompt`) — that's the inline message, not
+  the gate. Prompt labels are rendered as markup (`richLabel`), which rewrites anchors to `_blank` so
+  a link can't navigate the flow away; inside a `<label>` those links don't toggle the box (the HTML
+  spec skips label activation for interactive descendants). Recording the answer takes a *second*
+  policy on each flow's **user write binding** (same trick as `ietf-enrollment-set-username-from-email`):
+  keys it injects into `prompt_data` as `attributes.…` are written to `user.attributes`, dotted paths
+  nesting — the checkbox's own bare key is discarded by the write stage. Hence the stage must be bound
+  before user write, and that policy must return `True` unconditionally (a stage binding policy
+  returning `False` *skips* the stage — here, no account).
 - **"Stay signed in" (`ak-stage-user-login`) is coupled to server config.** The user login stage runs
   headlessly *unless* its `remember_me_offset` is non-zero, in which case it emits a challenge that
   **requires** a `remember_me` boolean back (session then lasts `session_duration + remember_me_offset`;
