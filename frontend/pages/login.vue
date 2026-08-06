@@ -76,7 +76,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="finalizing" class="card text-center">
+  <div v-if="finalizing" class="card">
     <h1 class="mb-1 text-xl font-semibold text-slate-900">Signing you in…</h1>
     <p class="text-sm text-slate-500">Completing your social login.</p>
   </div>

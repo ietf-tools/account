@@ -29,12 +29,18 @@ const heading = computed(() => {
   return stage.value === 'ak-stage-user-login' ? 'Stay signed in?' : 'Finish setting up your account'
 })
 
-// "Back to sign in" is an out worth offering while the flow is still asking for
-// something the user could walk away from — the Note Well agreement — and on a
-// dead-end stage like access-denied. Not on the captcha, the stay-signed-in card or
-// the closing redirect: the account is being created by then, so leaving mid-way
-// isn't a useful suggestion. Nor before the first challenge arrives.
-const NO_FOOTER_STAGES = new Set(['ak-stage-captcha', 'ak-stage-user-login', 'xak-flow-redirect'])
+// "Back to sign in" is only worth offering on a dead end like access-denied, where
+// there is nothing else to do. Not on the Note Well agreement, the captcha, the
+// stay-signed-in card or the closing redirect: the user is part-way through creating
+// an account by then, so the link is just a way to lose that progress (same call
+// register.vue makes for the manual enrollment flow). Nor before the first challenge
+// arrives.
+const NO_FOOTER_STAGES = new Set([
+  'ak-stage-prompt', // this flow's only prompt is the Note Well agreement
+  'ak-stage-captcha',
+  'ak-stage-user-login',
+  'xak-flow-redirect'
+])
 const showBackToSignIn = computed(() => {
   return Boolean(stage.value) && !NO_FOOTER_STAGES.has(stage.value)
 })
@@ -54,7 +60,11 @@ function onComplete(user) {
 </script>
 
 <template>
-  <div class="card text-center">
+  <!-- Left-aligned like every other flow page: FlowExecutor's own card (login,
+       register, recovery) aligns its heading and stage content left, and this page
+       hosts the same stages under its own chrome. Only the footer slot is centered,
+       which FlowExecutor does itself. -->
+  <div class="card">
     <!-- Reads for both faces of this page: the agreement/captcha stages the flow
          renders here, and the redirect-only pass where it just flashes by. -->
     <h1 class="mb-6 text-xl font-semibold text-slate-900">{{ heading }}</h1>
