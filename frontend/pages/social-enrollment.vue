@@ -19,6 +19,26 @@
 const auth = useAuthStore()
 const router = useRouter()
 
+// The flow drives this page's chrome, since FlowExecutor is embedded here and renders
+// none of its own: `stage` is the component of the challenge on screen.
+const stage = ref(null)
+
+// The "Stay signed in?" card asks its own question, so it gets its own heading (the
+// same swap FlowExecutor makes for that stage when it owns the header).
+const heading = computed(() => {
+  return stage.value === 'ak-stage-user-login' ? 'Stay signed in?' : 'Finish setting up your account'
+})
+
+// "Back to sign in" is an out worth offering while the flow is still asking for
+// something the user could walk away from — the Note Well agreement — and on a
+// dead-end stage like access-denied. Not on the captcha, the stay-signed-in card or
+// the closing redirect: the account is being created by then, so leaving mid-way
+// isn't a useful suggestion. Nor before the first challenge arrives.
+const NO_FOOTER_STAGES = new Set(['ak-stage-captcha', 'ak-stage-user-login', 'xak-flow-redirect'])
+const showBackToSignIn = computed(() => {
+  return Boolean(stage.value) && !NO_FOOTER_STAGES.has(stage.value)
+})
+
 // Only reached when the flow completes with no redirect for FlowExecutor to follow
 // (the normal path is its terminal `to`, back to the `next` the source callback
 // started the flow with). The account exists by then, so adopt the session if the
@@ -37,11 +57,17 @@ function onComplete(user) {
   <div class="card text-center">
     <!-- Reads for both faces of this page: the agreement/captcha stages the flow
          renders here, and the redirect-only pass where it just flashes by. -->
-    <h1 class="mb-6 text-xl font-semibold text-slate-900">Finish setting up your account</h1>
-    <FlowExecutor kind="socialEnrollment" :resume="true" embedded @complete="onComplete">
+    <h1 class="mb-6 text-xl font-semibold text-slate-900">{{ heading }}</h1>
+    <FlowExecutor
+      kind="socialEnrollment"
+      :resume="true"
+      embedded
+      @stage="stage = $event"
+      @complete="onComplete"
+    >
       <template #complete>Just a moment — redirecting you…</template>
       <template #footer>
-        <NuxtLink to="/login" class="link">Back to sign in</NuxtLink>
+        <NuxtLink v-if="showBackToSignIn" to="/login" class="link">Back to sign in</NuxtLink>
       </template>
     </FlowExecutor>
   </div>

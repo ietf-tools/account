@@ -40,7 +40,10 @@ const props = defineProps({
   // access-consent on login has to be an explicit user action, never auto-clicked.
   autoConsent: { type: Boolean, default: false }
 })
-const emit = defineEmits(['complete'])
+// `stage` reports the current challenge's component (null before the first one
+// lands). Embedded hosts render their own chrome, so they need to follow the flow to
+// keep a heading or footer link in step with the stage on screen.
+const emit = defineEmits(['complete', 'stage'])
 
 // Forward the page's OAuth querystring (client_id=…&redirect_uri=…) to the
 // executor, exactly as authentik's stock flow UI does. Empty for a normal login.
@@ -54,6 +57,7 @@ const { challenge, complete, user, redirectTo, loading, error, begin, beginFlow,
 // Local form model, reset whenever the stage changes.
 const model = reactive({})
 const component = computed(() => challenge.value?.component)
+watch(component, (value) => emit('stage', value ?? null))
 
 // True while a host-opted-in consent stage is being auto-submitted (see the
 // autoConsent prop): the template shows the loading spinner rather than the consent
@@ -100,6 +104,24 @@ const DEVICE_LABELS = {
 }
 function deviceLabel(deviceClass) {
   return DEVICE_LABELS[deviceClass] ?? 'Authenticator code'
+}
+
+// One glyph per device class for the method buttons, reusing what the account MFA
+// view shows for the same types (phone / fingerprint / codes — see
+// pages/account/mfa.vue). Heroicons outline paths; a class we don't know falls back
+// to the shield that view uses for an enrolled authenticator.
+const DEVICE_ICONS = {
+  totp: 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3',
+  webauthn: 'M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33',
+  static: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z',
+  sms: 'M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z',
+  email: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75'
+}
+const FALLBACK_DEVICE_ICON =
+  'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.249-8.25-3.286z'
+
+function deviceIcon(deviceClass) {
+  return DEVICE_ICONS[deviceClass] ?? FALLBACK_DEVICE_ICON
 }
 
 function selectDevice(device) {
@@ -745,7 +767,17 @@ function signOutEntirely() {
             :disabled="loading"
             @click="selectDevice(device)"
           >
-            {{ deviceLabel(device.device_class) }}
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              class="h-5 w-5 shrink-0 text-slate-400"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" :d="deviceIcon(device.device_class)" />
+            </svg>
+            <span>{{ deviceLabel(device.device_class) }}</span>
           </button>
         </div>
 
@@ -1064,12 +1096,9 @@ function signOutEntirely() {
         :disabled="loading"
         @click="beginPasswordless"
       >
+        <!-- Same fingerprint glyph the webauthn method button uses. -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33"
-          />
+          <path stroke-linecap="round" stroke-linejoin="round" :d="DEVICE_ICONS.webauthn" />
         </svg>
         <span>Sign in with a passkey</span>
       </button>

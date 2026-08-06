@@ -11,6 +11,12 @@ const finalizing = ref(route.query.social === 'return')
 // of — see onComplete.
 const signInError = ref(null)
 
+// The sign-up / password-reset links belong beside the sign-in form, so they show on
+// the stages that ARE that form and nowhere else: once credentials are in and the
+// flow has moved on to verifying identity (MFA), "Stay signed in?" or the closing
+// redirect, offering to create an account is noise.
+const FORM_STAGES = new Set(['ak-stage-identification', 'ak-stage-password'])
+
 // A third-party app sent the user here to sign in (authentik redirected its
 // /if/flow/<slug>/?client_id=… to us — see the edge rule in README). Resume
 // authentik's existing plan and, once done, follow its redirect back to the app.
@@ -105,11 +111,9 @@ onMounted(async () => {
       <p v-if="signInError" class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
         {{ signInError }}
       </p>
-      <!-- The sign-up / password-reset links belong beside the sign-in form. Not on
-           the "Stay signed in?" card (ak-stage-user-login): credentials are already
-           accepted by then, so offering to create an account — and the divider above
-           it — is only noise. -->
-      <template v-if="component !== 'ak-stage-user-login'">
+      <!-- Only on the sign-in form itself (see FORM_STAGES) — and the divider goes
+           with the links, so later stages don't end on a stray rule. -->
+      <template v-if="FORM_STAGES.has(component)">
         <hr class="mb-6 border-t border-slate-200" />
         <div class="space-y-1">
           <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
