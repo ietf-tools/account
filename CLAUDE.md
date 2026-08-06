@@ -131,6 +131,20 @@ fresh cookie jar per `begin`.)
   `remember_device` known-device cookie on the headless path (`if remember is None`), so enabling the
   offset disables it. Don't confuse any of this with the identification stage's `enable_remember_me`,
   which is only a localStorage username prefill in authentik's stock UI and is ignored here.
+- **One stage, one POST — and never route out of a completed flow without a user.** Password managers
+  autofill *and submit*, so a stage can be answered twice (a disabled Continue button doesn't stop an
+  Enter keypress in a field); the duplicate reaches authentik after the plan has advanced and answers
+  the wrong stage. [useFlow.js](frontend/composables/useFlow.js) drops a `submit` while one is in
+  flight and stamps every request with a `generation` so a late response can't be applied over a newer
+  one — that clobbering is what once left the completed flow's `user` null while `complete` stayed
+  true: the consumer's completion watcher is one-shot, so nothing ever redirected and login sat on
+  "Signed in — redirecting…". `resolveUser` also maps authentik's AnonymousUser to `null` (a terminal
+  `xak-flow-redirect` is not proof of a session — a non-applicable flow ends the same way). Pages
+  therefore must treat a null user as "resolve the session yourself" ([login.vue](frontend/pages/login.vue),
+  [social-callback.vue](frontend/pages/social-callback.vue), [verify-email.vue](frontend/pages/verify-email.vue)):
+  pushing an unauthenticated browser at a guarded route makes the middleware bounce it to `/login`,
+  and when that IS the current route Vue Router silently drops the navigation — a dead end with no
+  error on screen.
 - **`autofocus` does not fire** on SPA navigation or Vue stage swaps. Focus programmatically instead —
   FlowExecutor focuses the first field on every `challenge` change (`focusFirstField` + `formEl` ref);
   migrate.vue focuses on mount via a ref. Follow this pattern for new focusable steps.

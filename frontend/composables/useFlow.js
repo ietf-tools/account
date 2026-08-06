@@ -60,40 +60,80 @@ export function useFlow(kind, options = {}) {
     }).catch(() => {})
   }
 
+  // Only the newest request may touch the state above. Requests CAN overlap: a
+  // password manager filling a stage (1Password &c.) submits it twice often enough
+  // — a disabled Continue button doesn't stop an Enter keypress in a field — and
+  // authentik answers the duplicate for a stage its plan has already left behind.
+  // Applying that late response over a newer one rewinds the UI to a stage the flow
+  // is done with; worse, when the newer response was the terminal redirect it
+  // overwrote the resolved `user` with null while `complete` stayed true, so the
+  // consumer's one-shot completion watcher never fired again and the page sat on
+  // "Signed in — redirecting…" forever.
+  let generation = 0
+  const stale = (mine) => mine !== generation
+  const snapshot = () => ({
+    challenge: challenge.value,
+    complete: complete.value,
+    user: user.value
+  })
+
   async function resolveUser() {
-    // Flow reached xak-flow-redirect => the browser is now authenticated in
+    // Flow reached xak-flow-redirect => the browser should now be authenticated in
     // authentik. Resolve who just signed in / enrolled.
     const body = await ak('/core/users/me/')
-    return toSessionUser(body.user ?? body)
+    const me = body.user ?? body
+    // A terminal redirect is not proof of a session: authentik also ends a flow this
+    // way when it turns out not to be applicable (a duplicate POST re-planning an
+    // authentication flow the user is now already signed into, say), and
+    // /core/users/me/ answers that with its AnonymousUser instead of failing. Report
+    // "nobody" so the host page resolves the session itself rather than storing a
+    // pseudo-user as the signed-in one.
+    return isAnonymous(me) ? null : toSessionUser(me)
   }
 
-  async function apply(next) {
+  async function apply(next, mine) {
     const done = isFlowComplete(next)
     if (done) {
-      redirectTo.value = next.to ?? null
       // Resolve the signed-in user BEFORE flipping `complete`. `resolveUser` is an
       // async /core/users/me/ fetch; if we set `complete` first, the consumer's
       // completion watcher fires on the next microtask — before this resolves — and
       // sees `user` still null, treating a real login as a failure. In resume
       // (provider) mode the caller just follows redirectTo, so this stays
       // best-effort — don't let it fail the flow.
-      user.value = await resolveUser().catch(() => null)
+      const resolved = await resolveUser().catch(() => null)
+      // Another request landed while we were resolving — it owns the state now.
+      if (stale(mine)) {
+        return snapshot()
+      }
+      redirectTo.value = next.to ?? null
+      user.value = resolved
     }
     challenge.value = withSources(next)
     complete.value = done
-    return { challenge: challenge.value, complete: complete.value, user: user.value }
+    return snapshot()
   }
 
   async function run(request) {
+    const mine = ++generation
     loading.value = true
     error.value = null
     try {
-      return await apply(await request)
+      const next = await request
+      if (stale(mine)) {
+        return snapshot()
+      }
+      return await apply(next, mine)
     } catch (e) {
-      error.value = e?.data?.detail || e?.data?.error || e?.message || 'Something went wrong'
+      if (!stale(mine)) {
+        error.value = e?.data?.detail || e?.data?.error || e?.message || 'Something went wrong'
+      }
       throw e
     } finally {
-      loading.value = false
+      // A newer request owns `loading` (and will clear it) — don't report idle while
+      // it's still in flight.
+      if (!stale(mine)) {
+        loading.value = false
+      }
     }
   }
 
@@ -124,8 +164,18 @@ export function useFlow(kind, options = {}) {
       })()
     )
 
-  const submit = (payload) =>
-    run(ak(executorUrl(activeSlug.value), { method: 'POST', body: payload ?? {} }))
+  // Answer the current stage. Drops a submit fired while one is already in flight:
+  // one stage, one POST. Autofill-and-submit can otherwise send the same answer
+  // twice, and the second POST reaches authentik after the plan has moved on — it
+  // then answers a *different* stage than the user thinks they're on. (The
+  // generation guard in `run` is the backstop for anything that still overlaps,
+  // e.g. a begin racing a submit.)
+  const submit = (payload) => {
+    if (loading.value) {
+      return Promise.resolve(snapshot())
+    }
+    return run(ak(executorUrl(activeSlug.value), { method: 'POST', body: payload ?? {} }))
+  }
 
   return { challenge, complete, user, redirectTo, loading, error, begin, beginFlow, submit }
 }

@@ -19,11 +19,17 @@
 const auth = useAuthStore()
 const router = useRouter()
 
-function onComplete(user) {
+async function onComplete(user) {
   if (user) {
     auth.setUser(user)
+  } else {
+    // No resolved user (the flow's /core/users/me/ failed, or it ended on a redirect
+    // without signing anyone in): resolve the session before routing, because
+    // /account/applications is guarded — sending an unauthenticated browser there
+    // just bounces it back to /login with nothing explained.
+    await auth.fetchSession()
   }
-  router.push('/account/applications')
+  router.push(auth.isAuthenticated ? '/account/applications' : '/login?social=return')
 }
 </script>
 

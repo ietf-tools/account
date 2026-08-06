@@ -6,15 +6,33 @@ const ak = useAuthentik()
 
 // True while we resolve the session after returning from a social login.
 const finalizing = ref(route.query.social === 'return')
-const socialError = ref(null)
+// Shown in the footer (which renders in every flow state, including the completed
+// one): a social return that didn't resolve, or a completed flow we can't route out
+// of — see onComplete.
+const signInError = ref(null)
 
 // A third-party app sent the user here to sign in (authentik redirected its
 // /if/flow/<slug>/?client_id=… to us — see the edge rule in README). Resume
 // authentik's existing plan and, once done, follow its redirect back to the app.
 const isProviderFlow = computed(() => Boolean(route.query.client_id))
 
-function onComplete(user) {
-  auth.setUser(user)
+async function onComplete(user) {
+  if (user) {
+    auth.setUser(user)
+  } else {
+    // The flow finished but didn't tell us who signed in (its /core/users/me/ call
+    // failed, or authentik ended a non-applicable flow with a redirect). The browser
+    // holds authentik's session cookie either way, so ask the store — this is the
+    // same resolve the boot plugin does.
+    await auth.fetchSession()
+  }
+  if (!auth.isAuthenticated) {
+    // Never push into a guarded route unauthenticated: the auth middleware bounces
+    // to /login — the route we're already on — Vue Router drops that navigation, and
+    // the completed flow card stays on screen with nothing said. Say something.
+    signInError.value = 'You were signed in, but we could not load your account. Reload this page to continue.'
+    return
+  }
   router.push('/account/applications')
 }
 
@@ -42,9 +60,9 @@ onMounted(async () => {
     if (isAnonymous(user)) {
       throw new Error('Social login did not complete')
     }
-    onComplete(toSessionUser(user))
+    await onComplete(toSessionUser(user))
   } catch (e) {
-    socialError.value = e?.data?.detail || 'Social sign-in could not be completed. Please try again.'
+    signInError.value = e?.data?.detail || 'Social sign-in could not be completed. Please try again.'
     finalizing.value = false
     router.replace({ query: {} })
   }
@@ -86,8 +104,8 @@ onMounted(async () => {
     <template #footer="{ component }">
       <hr class="mb-6 border-t border-slate-200" />
       <div class="space-y-1">
-        <p v-if="socialError" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {{ socialError }}
+        <p v-if="signInError" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {{ signInError }}
         </p>
         <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
         <p v-if="component === 'ak-stage-password'">
