@@ -102,16 +102,22 @@ onMounted(async () => {
       </div>
     </template>
     <template #footer="{ component }">
-      <hr class="mb-6 border-t border-slate-200" />
-      <div class="space-y-1">
-        <p v-if="signInError" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {{ signInError }}
-        </p>
-        <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
-        <p v-if="component === 'ak-stage-password'">
-          <NuxtLink to="/recover" class="link">Forgot your password?</NuxtLink>
-        </p>
-      </div>
+      <p v-if="signInError" class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        {{ signInError }}
+      </p>
+      <!-- The sign-up / password-reset links belong beside the sign-in form. Not on
+           the "Stay signed in?" card (ak-stage-user-login): credentials are already
+           accepted by then, so offering to create an account — and the divider above
+           it — is only noise. -->
+      <template v-if="component !== 'ak-stage-user-login'">
+        <hr class="mb-6 border-t border-slate-200" />
+        <div class="space-y-1">
+          <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
+          <p v-if="component === 'ak-stage-password'">
+            <NuxtLink to="/recover" class="link">Forgot your password?</NuxtLink>
+          </p>
+        </div>
+      </template>
     </template>
   </FlowExecutor>
 </template>

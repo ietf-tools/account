@@ -8,6 +8,12 @@ import QRCode from 'qrcode'
 const props = defineProps({
   kind: { type: String, required: true }, // authentication | enrollment | recovery
   title: { type: String, default: '' },
+  // Per-stage heading overrides, keyed by challenge `component`. `title` names the
+  // flow as a whole; a stage that changes the subject can own the heading instead —
+  // enrollment's closing "check your inbox" step is about verifying an email, not
+  // "Create your account", while the same stage under the recovery flow is still
+  // about resetting a password. Hence per host, not a constant in here.
+  stageTitles: { type: Object, default: () => ({}) },
   // Set when a third-party app initiated this flow (see login.vue): resume
   // authentik's existing plan instead of restarting, and on completion follow
   // its redirect back to the app rather than emitting `complete`.
@@ -15,11 +21,11 @@ const props = defineProps({
   // Drop the card chrome (outer card, title, "continue as") so the flow can be
   // hosted inside another panel — e.g. MFA enrollment in the account shell.
   embedded: { type: Boolean, default: false },
-  // Override the ak-stage-consent body. A consent stage is authentik's generic
-  // "confirm to proceed" step, used both for OAuth provider access-consent and as
-  // an anti-pre-fetch confirmation in the enrollment flow — the wording differs by
-  // context. Empty keeps the default OAuth "requesting access" copy + permissions.
-  consentText: { type: String, default: '' },
+  // Whether to show the "Continue as <pending_user> (Not you?)" line under the
+  // heading. Off for a flow the user didn't start from a sign-in form — the email
+  // confirmation link, say, where there is nobody else it could be and restarting is
+  // not on offer.
+  showPendingUser: { type: Boolean, default: true },
   // In resume mode, whether to follow authentik's terminal redirect (its `to`) on
   // completion. True for provider-continuation flows (OAuth login/logout, social
   // return) where that redirect IS the point — it hands the browser back to the
@@ -167,6 +173,17 @@ function submitRememberMe(value) {
 // autoRemembering: that's the spinner path, where the header stays as it was.
 const askingRememberMe = computed(() => {
   return component.value === 'ak-stage-user-login' && !autoRemembering.value
+})
+
+// The card's heading: the stay-signed-in card's own question, else the host's
+// per-stage override, else the flow-wide title (authentik's flow title as a last
+// resort). Not applied while autoRemembering — that's the spinner path, where the
+// heading stays as it was.
+const heading = computed(() => {
+  if (askingRememberMe.value) {
+    return 'Stay signed in?'
+  }
+  return props.stageTitles[component.value] || props.title || challenge.value?.flow_info?.title || 'Authentik'
 })
 
 // Stages that render their own actions, or have none at all: no generic Continue
@@ -598,10 +615,11 @@ function signOutEntirely() {
 <template>
   <div :class="{ card: !embedded }">
     <template v-if="!embedded">
-      <h1 class="mb-1 text-xl font-semibold text-slate-900">
-        {{ askingRememberMe ? 'Stay signed in?' : (title || challenge?.flow_info?.title || 'Authentik') }}
-      </h1>
-      <p v-if="challenge?.pending_user && !askingRememberMe" class="mb-6 text-sm text-slate-500">
+      <h1 class="mb-1 text-xl font-semibold text-slate-900">{{ heading }}</h1>
+      <p
+        v-if="showPendingUser && challenge?.pending_user && !askingRememberMe"
+        class="mb-6 text-sm text-slate-500"
+      >
         Continue as {{ challenge.pending_user }}
         <button type="button" class="link" :disabled="loading" @click="begin">(Not you?)</button>
       </p>
@@ -826,13 +844,14 @@ function signOutEntirely() {
         </div>
       </template>
 
-      <!-- Consent stage: authentik's generic "confirm to proceed" step. Used for
-           OAuth explicit-consent providers (default copy + requested permissions)
-           and, with a `consentText` override, as the enrollment confirmation.
-           Submitting echoes back the challenge `token` (see onSubmit) to advance. -->
+      <!-- Consent stage: authentik's generic "confirm to proceed" step, used both for
+           OAuth explicit-consent providers and as the enrollment email-link
+           confirmation — the wording differs by context, so a host can replace the
+           body through the `consent` slot (it gets the challenge, whose `pending_user`
+           &c. the copy may want). The fallback below is the OAuth case. Submitting
+           echoes back the challenge `token` (see onSubmit) to advance. -->
       <template v-else-if="component === 'ak-stage-consent'">
-        <p v-if="consentText" class="text-sm text-slate-600">{{ consentText }}</p>
-        <template v-else>
+        <slot name="consent" :challenge="challenge">
           <p class="text-sm text-slate-600">
             <span class="font-medium">{{ challenge.flow_info?.title || 'An application' }}</span>
             is requesting access to your IETF account.
@@ -843,7 +862,7 @@ function signOutEntirely() {
           >
             <li v-for="perm in challenge.permissions" :key="perm.id">{{ perm.name }}</li>
           </ul>
-        </template>
+        </slot>
       </template>
 
       <!-- TOTP enrollment: scan the QR (or enter the secret), then confirm a code -->
@@ -913,11 +932,31 @@ function signOutEntirely() {
         </p>
       </template>
 
-      <!-- Email stage (e.g. recovery link sent) -->
+      <!-- Email stage: a link has been sent and the flow now waits on it (enrollment
+           verification, recovery reset). Terminal as far as this UI goes — no submit,
+           nothing to fill in — so it's the message plus an illustration. -->
       <template v-else-if="component === 'ak-stage-email'">
-        <p class="text-sm text-slate-600">
-          Check your inbox — we've sent you an email to continue.
-        </p>
+        <div class="flex flex-col items-center gap-6 text-center">
+          <p class="text-sm text-slate-600">
+            Check your inbox — we've sent you an email to continue.
+          </p>
+          <!-- Envelope with a "sent" check badge. The badge is filled white (the card
+               is always light) so it reads as sitting on top of the envelope rather
+               than the envelope's corner showing through it. -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.25"
+            class="h-24 w-24 text-slate-300"
+            aria-hidden="true"
+          >
+            <rect x="2.25" y="5.25" width="19.5" height="13.5" rx="2.25" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.6 7.1l7.1 5.05a2.25 2.25 0 002.6 0L20.4 7.1" />
+            <circle cx="18" cy="17.5" r="5" class="fill-white" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.9 17.6l1.6 1.6 2.6-3.2" />
+          </svg>
+        </div>
       </template>
 
       <!-- Access denied: a terminal stage explaining why the flow can't continue
@@ -1073,7 +1112,10 @@ function signOutEntirely() {
     </div>
 
     <div class="mt-6 text-center text-sm text-slate-500">
-      <slot name="footer" :component="component" />
+      <!-- `challenge` rides along with `component` so a host can tell two stages of
+           the same component apart — e.g. enrollment's sign-up form and its Note Well
+           agreement are both ak-stage-prompt (see register.vue). -->
+      <slot name="footer" :component="component" :challenge="challenge" />
     </div>
   </div>
 </template>

@@ -6,7 +6,7 @@
 // forwarding the link's token (the `query`) so authentik restores the pending
 // enrollment. It resumes on an interactive ak-stage-consent challenge (authentik's
 // generic "confirm to proceed" step — injected on any token resume, not a stage in
-// the flow's bindings — with our own copy via `consent-text`): the token is
+// the flow's bindings — with our own copy via the `consent` slot): the token is
 // only consumed when the user submits (POST), so an email client pre-fetching
 // the link (Outlook, Defender) can't verify the account on the user's behalf — and
 // because this SPA needs JavaScript to call the executor at all, a plain link
@@ -22,6 +22,15 @@
 const auth = useAuthStore()
 const router = useRouter()
 
+// The consent stage's copy, naming the address being confirmed. That address is the
+// challenge's `pending_user`: authentik puts the pending account's *username* there,
+// and this flow's ietf-enrollment-set-username-from-email policy makes the username
+// the email address. Dropped from the sentence if it's ever absent.
+function confirmCopy(challenge) {
+  const email = challenge?.pending_user
+  return `Click continue to confirm this email address${email ? ` (${email})` : ''} and finalize your IETF account.`
+}
+
 async function onComplete() {
   // Re-resolve from /core/users/me/ (this also filters authentik's AnonymousUser),
   // so isAuthenticated reflects the login the flow just performed.
@@ -36,12 +45,12 @@ async function onComplete() {
     title="Finalize your account"
     :resume="true"
     :follow-redirect="false"
-    consent-text="Click continue to confirm this email address and finalize your IETF account."
+    :show-pending-user="false"
     @complete="onComplete"
   >
-    <template #complete>Your account is ready — redirecting…</template>
-    <template #footer>
-      <p>Changed your mind? <NuxtLink to="/login" class="link">Back to sign in</NuxtLink></p>
+    <template #consent="{ challenge }">
+      <p class="text-sm text-slate-600">{{ confirmCopy(challenge) }}</p>
     </template>
+    <template #complete>Your account is ready — redirecting…</template>
   </FlowExecutor>
 </template>

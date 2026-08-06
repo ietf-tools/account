@@ -103,7 +103,15 @@ async function launchConfetti(event) {
         class="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-52 w-[34rem] max-w-[92vw]
           -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-slate-950 blur-2xl"
       />
-      <img src="https://static.ietf.org/logos/ietf-inverted.svg" alt="IETF" class="h-16 w-auto" />
+      <!-- Home is the app root (/app/ — NuxtLink applies app.baseURL), which routes
+           on to the account shell, or to sign-in when there's no session. -->
+      <NuxtLink
+        to="/"
+        class="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400
+          focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+      >
+        <img src="https://static.ietf.org/logos/ietf-inverted.svg" alt="IETF" class="h-16 w-auto" />
+      </NuxtLink>
       <h1 class="mt-4 text-2xl font-semibold text-slate-100">IETF Account</h1>
     </div>
 

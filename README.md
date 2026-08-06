@@ -171,7 +171,8 @@ signed-in area (falling back to sign-in if the flow didn't authenticate).
 > to proceed" step). It is **not** a stage in the flow's bindings — authentik injects
 > it whenever a flow is resumed from an email-link token, as a resume guard. Here
 > that guard is exactly what we want (the user must click to confirm the email), so
-> `FlowExecutor` renders it with `verify-email.vue`'s `consent-text` override and
+> `FlowExecutor` renders it through `verify-email.vue`'s `consent` slot (whose copy names
+> the address being confirmed — the challenge's `pending_user`) and
 > echoes the challenge's required `token` back on submit. (Recovery injects the same
 > consent but suppresses it — see "Password reset" below.) If your flow surfaces a
 > different component, add a branch in
