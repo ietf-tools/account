@@ -7,8 +7,6 @@ import { LifebuoyMailIcon } from '#components'
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-// App version, injected at build time from package.json (see nuxt.config.ts).
-const appVersion = useRuntimeConfig().public.appVersion
 
 // Sidebar sections, in display order. Each maps to a page under pages/account/.
 // `icon` is the `d` of a single heroicons (v2, outline) path drawn in the nav.
@@ -103,126 +101,133 @@ async function launchConfetti(event) {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+  <!-- Same two-row shell as layouts/default.vue: content row grows and centres,
+       footer follows it (bottom of the screen when the box is short, below the
+       fold when it isn't). -->
+  <div class="flex min-h-screen flex-col px-4 pt-10 pb-6">
     <NetworkBackground />
 
-    <div class="relative isolate mb-8 flex flex-col items-center">
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-52 w-[34rem] max-w-[92vw]
-          -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-slate-950 blur-2xl"
-      />
-      <!-- Home is the app root (/app/ — NuxtLink applies app.baseURL), which routes
-           on to the account shell, or to sign-in when there's no session. -->
-      <NuxtLink
-        to="/"
-        class="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400
-          focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
-      >
-        <img src="https://static.ietf.org/logos/ietf-inverted.svg" alt="IETF" class="h-16 w-auto" />
-      </NuxtLink>
-      <h1 class="mt-4 text-2xl font-semibold text-slate-100">IETF Account</h1>
-    </div>
+    <div class="flex flex-1 flex-col items-center justify-center">
+      <div class="relative isolate mb-8 flex flex-col items-center">
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-52 w-[34rem] max-w-[92vw]
+            -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-slate-950 blur-2xl"
+        />
+        <!-- Home is the app root (/app/ — NuxtLink applies app.baseURL), which routes
+             on to the account shell, or to sign-in when there's no session. -->
+        <NuxtLink
+          to="/"
+          class="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400
+            focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+        >
+          <img src="https://static.ietf.org/logos/ietf-inverted.svg" alt="IETF" class="h-16 w-auto" />
+        </NuxtLink>
+        <h1 class="mt-4 text-2xl font-semibold text-slate-100">IETF Account</h1>
+      </div>
 
-    <div class="relative w-full max-w-4xl">
-      <div
-        class="flex flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline outline-[6px]
-          outline-sky-400/40 md:flex-row"
-      >
-        <!-- Sidebar: identity, section nav, sign-out pinned to the bottom. -->
-        <aside class="flex flex-col border-b border-slate-200 bg-slate-50 md:w-64 md:border-b-0 md:border-r">
-          <div class="flex items-center gap-3 border-b border-slate-200 p-4">
-            <button
-              type="button"
-              title="🎉"
-              class="shrink-0 rounded-full transition hover:scale-105 active:scale-95
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
-              @click="launchConfetti"
-            >
-              <img
-                v-if="auth.user?.avatar"
-                :src="auth.user.avatar"
-                alt=""
-                class="h-10 w-10 rounded-full object-cover"
-              />
-              <span
-                v-else
-                aria-hidden="true"
-                class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100
-                  text-sm font-semibold text-sky-700"
+      <div class="relative w-full max-w-4xl">
+        <div
+          class="flex flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline outline-[6px]
+            outline-sky-400/40 md:flex-row"
+        >
+          <!-- Sidebar: identity, section nav, sign-out pinned to the bottom. -->
+          <aside class="flex flex-col border-b border-slate-200 bg-slate-50 md:w-64 md:border-b-0 md:border-r">
+            <div class="flex items-center gap-3 border-b border-slate-200 p-4">
+              <button
+                type="button"
+                title="🎉"
+                class="shrink-0 rounded-full transition hover:scale-105 active:scale-95
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+                @click="launchConfetti"
               >
-                {{ initial }}
-              </span>
-            </button>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-slate-900">
-                {{ auth.user?.name || auth.user?.username }}
-              </p>
-              <p class="truncate text-xs text-slate-500">{{ auth.user?.email }}</p>
+                <img
+                  v-if="auth.user?.avatar"
+                  :src="auth.user.avatar"
+                  alt=""
+                  class="h-10 w-10 rounded-full object-cover"
+                />
+                <span
+                  v-else
+                  aria-hidden="true"
+                  class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100
+                    text-sm font-semibold text-sky-700"
+                >
+                  {{ initial }}
+                </span>
+              </button>
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-slate-900">
+                  {{ auth.user?.name || auth.user?.username }}
+                </p>
+                <p class="truncate text-xs text-slate-500">{{ auth.user?.email }}</p>
+              </div>
             </div>
-          </div>
 
-          <nav class="space-y-1 p-3">
-            <NuxtLink
-              v-for="item in items"
-              :key="item.to"
-              :to="item.to"
-              class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition"
-              :class="
-                isActive(item.to)
-                  ? 'bg-sky-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              "
-            >
-              <component :is="item.iconComponent" v-if="item.iconComponent" class="h-5 w-5 shrink-0" />
-              <svg
-                v-else
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="h-5 w-5 shrink-0"
-                aria-hidden="true"
+            <nav class="space-y-1 p-3">
+              <NuxtLink
+                v-for="item in items"
+                :key="item.to"
+                :to="item.to"
+                class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition"
+                :class="
+                  isActive(item.to)
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                "
               >
-                <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
-              </svg>
-              {{ item.label }}
-            </NuxtLink>
-          </nav>
+                <component :is="item.iconComponent" v-if="item.iconComponent" class="h-5 w-5 shrink-0" />
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  class="h-5 w-5 shrink-0"
+                  aria-hidden="true"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
+                </svg>
+                {{ item.label }}
+              </NuxtLink>
+            </nav>
 
-          <div class="space-y-2 border-t border-slate-200 p-3">
-            <!-- Superusers only. Plain anchor (not NuxtLink) so it leaves the SPA
-                 to authentik's admin UI at the domain root rather than resolving
-                 under the /app/ base. -->
-            <a v-if="auth.user?.isSuperuser" href="/if/admin/" class="btn-social w-full">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"
-                />
-              </svg>
-              Administration Area
-            </a>
-            <button class="btn-social w-full text-red-600" @click="onLogout">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
-                />
-              </svg>
-              Sign out
-            </button>
-          </div>
+            <!-- `mt-auto` keeps this block pinned to the bottom of the sidebar
+                 column (it used to ride on the version line below it). -->
+            <div class="mt-auto space-y-2 border-t border-slate-200 p-3">
+              <!-- Superusers only. Plain anchor (not NuxtLink) so it leaves the SPA
+                   to authentik's admin UI at the domain root rather than resolving
+                   under the /app/ base. -->
+              <a v-if="auth.user?.isSuperuser" href="/if/admin/" class="btn-social w-full">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"
+                  />
+                </svg>
+                Administration Area
+              </a>
+              <button class="btn-social w-full text-red-600" @click="onLogout">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                  />
+                </svg>
+                Sign out
+              </button>
+            </div>
+          </aside>
 
-          <p class="mt-auto p-3 text-center text-xs text-slate-400">Version {{ appVersion }}</p>
-        </aside>
-
-        <main class="min-w-0 flex-1 p-6 sm:p-8">
-          <slot />
-        </main>
+          <main class="min-w-0 flex-1 p-6 sm:p-8">
+            <slot />
+          </main>
+        </div>
       </div>
     </div>
+
+    <SiteFooter />
   </div>
 </template>
