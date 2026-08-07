@@ -29,7 +29,8 @@ function readAsDataUri(file) {
 // always a URL, so its shape is what says which mode produced it — a gravatar.com
 // URL, one of our generated `…-avatar-initials-….svg` objects, or an upload. The
 // `data:image/svg+xml` case covers both values written by earlier versions and the
-// dev-only preview below, neither of which the backend ever sends now.
+// dev-only fallback below (initialsAvatarDataUri), neither of which the backend
+// ever sends now.
 const INITIALS_PREFIX = 'data:image/svg+xml'
 
 function modeFor(avatar) {
@@ -43,36 +44,6 @@ function modeFor(avatar) {
     return 'initials'
   }
   return 'upload'
-}
-
-// Client-side twin of the backend's initials SVG, used only for the dev preview
-// when there's no live authentik session (nothing is uploaded to storage in that
-// case). Kept visually consistent with the server-generated one.
-function devInitialsDataUri(user) {
-  const name = String(user?.name ?? '').trim()
-  let initials = '?'
-  if (name) {
-    const words = name.split(/\s+/)
-    const first = words[0]?.[0] ?? ''
-    const last = words.length > 1 ? words[words.length - 1][0] : ''
-    initials = `${first}${last}`.toUpperCase() || '?'
-  } else if (user?.username) {
-    initials = user.username[0].toUpperCase()
-  }
-  let hash = 0
-  for (const char of String(user?.email || user?.username || initials)) {
-    hash = (hash * 31 + char.charCodeAt(0)) % 360
-  }
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">` +
-    `<rect width="256" height="256" fill="hsl(${hash}, 60%, 45%)"/>` +
-    `<text x="50%" y="50%" fill="#ffffff" font-size="110" font-weight="600" ` +
-    `font-family="ui-sans-serif, system-ui, sans-serif" text-anchor="middle" ` +
-    `dominant-baseline="central">${initials}</text></svg>`
-  if (typeof window !== 'undefined' && window.btoa) {
-    return `${INITIALS_PREFIX};base64,${window.btoa(unescape(encodeURIComponent(svg)))}`
-  }
-  return `${INITIALS_PREFIX};utf8,${encodeURIComponent(svg)}`
 }
 
 // Dev-only Gravatar preview. The backend computes the authoritative URL (MD5, to
@@ -229,7 +200,7 @@ export function useAvatar() {
       return true
     } catch (e) {
       if (import.meta.dev) {
-        const avatar = devInitialsDataUri(auth.user)
+        const avatar = initialsAvatarDataUri(auth.user)
         applyStatus({ mode: 'initials', current: avatar, uploaded: null })
         auth.setUser({ ...auth.user, avatar })
         usingSample.value = true

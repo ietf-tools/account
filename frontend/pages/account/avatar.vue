@@ -38,17 +38,18 @@ const avatarPreviewSrc = computed(() => {
     return avatarPreview.value || uploaded.value || avatarCurrent.value
   }
   if (selected.value === 'initials') {
-    // Only preview the real generated image once it's the active mode; otherwise
-    // fall through to the letter placeholder below.
-    return mode.value === 'initials' ? avatarCurrent.value : null
+    // Render the same SVG the backend would generate rather than the stored one:
+    // it's identical when initials mode is already active, and it's what saving
+    // *would* produce when it isn't (or when the name changed since last save).
+    return initialsAvatarDataUri(auth.user)
   }
   return gravatar.value || avatarCurrent.value
 })
 
-const initial = computed(() => {
-  const source = auth.user?.name || auth.user?.username || '?'
-  return source.charAt(0).toUpperCase()
-})
+// Letter placeholder for the modes that can have nothing to show yet (an upload
+// before a file is chosen, a Gravatar URL we couldn't compute). Same derivation as
+// the generated avatar so the letters never disagree with it.
+const initials = computed(() => avatarInitials(auth.user))
 
 function readInto(file, target) {
   const reader = new FileReader()
@@ -197,7 +198,7 @@ onMounted(async () => {
             class="flex h-28 w-28 items-center justify-center rounded-full bg-sky-100
               text-3xl font-semibold text-sky-700"
           >
-            {{ initial }}
+            {{ initials }}
           </span>
           <span class="text-xs text-slate-400">Preview</span>
         </div>
