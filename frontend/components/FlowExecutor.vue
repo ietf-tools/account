@@ -174,7 +174,11 @@ function retryCaptcha() {
 // the user. Where we never got to ask (social return, enrollment, recovery: no
 // password stage) the stage renders as a visible card instead, so the choice is
 // always the user's rather than a silent default.
-const rememberMe = ref(false)
+//
+// Ticked by default: password managers autofill *and submit*, so an unticked box is
+// often never seen, and staying signed in is what almost everyone wants. Unticking
+// it is one click for the people on a shared machine.
+const rememberMe = ref(true)
 const rememberMeAsked = ref(false)
 const rememberMeSubmitted = ref(false)
 
@@ -1115,9 +1119,19 @@ function signOutEntirely() {
          the identification challenge when a passwordless flow is configured; we
          drive that flow's slug through the executor so it stays in this UI. -->
     <div v-if="component === 'ak-stage-identification' && passwordlessSlug && !resume" class="mt-4">
+      <!-- Same labelled rule as the social block below, so the two alternatives to
+           the Continue button read as a set. -->
+      <div class="relative">
+        <div class="absolute inset-0 flex items-center" aria-hidden="true">
+          <div class="w-full border-t border-slate-200" />
+        </div>
+        <div class="relative flex justify-center">
+          <span class="bg-white px-2 text-xs uppercase tracking-wide text-slate-400">or</span>
+        </div>
+      </div>
       <button
         type="button"
-        class="btn-social w-full justify-center"
+        class="btn-social mt-4 w-full justify-center"
         :disabled="loading"
         @click="beginPasswordless"
       >
@@ -1132,7 +1146,7 @@ function signOutEntirely() {
     <!-- Social / federated logins (authentik sources on the identification stage) -->
     <div
       v-if="component === 'ak-stage-identification' && challenge?.sources?.length"
-      class="mt-6"
+      class="mt-4"
     >
       <div class="relative">
         <div class="absolute inset-0 flex items-center" aria-hidden="true">
@@ -1161,7 +1175,7 @@ function signOutEntirely() {
 
     <!-- App-specific alternative sign-in paths (e.g. legacy migration), shown on
          the first/identification stage alongside the social buttons. -->
-    <div v-if="$slots.alternatives && component === 'ak-stage-identification'" class="mt-6">
+    <div v-if="$slots.alternatives && component === 'ak-stage-identification'" class="mt-4">
       <slot name="alternatives" />
     </div>
 

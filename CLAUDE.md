@@ -132,7 +132,8 @@ fresh cookie jar per `begin`.)
   password/MFA, so a checkbox on the sign-in form can't ride along: FlowExecutor keeps the answer in
   `rememberMe`, set by the checkbox on `ak-stage-password`, and auto-submits it (`autoRemembering`
   suppresses the flash, and a rejected silent answer falls through to the visible card rather than
-  looping). Flows with no password stage — social callback, enrollment, recovery — render the visible
+  looping). That checkbox is **ticked by default** — password managers autofill *and* submit, so an
+  unticked box is frequently never seen. Flows with no password stage — social callback, enrollment, recovery — render the visible
   "Stay signed in?" card instead, so the choice is never a silent default. Set the offset on **every**
   flow ending in a user login stage or behavior varies by sign-in method. Note authentik only writes the
   `remember_device` known-device cookie on the headless path (`if remember is None`), so enabling the

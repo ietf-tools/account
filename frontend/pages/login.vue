@@ -135,7 +135,9 @@ onMounted(async () => {
          gates the slot), so the two ways out of a forgotten password sit with the
          form they apply to. -->
     <template #recovery="{ challenge }">
-      <hr class="mb-4 border-t border-slate-200" />
+      <!-- mb-6 to match the footer's rule below (FlowExecutor spaces both slots
+           with mt-6), so the two buttons sit centred between the two rules. -->
+      <hr class="mb-6 border-t border-slate-200" />
       <div class="space-y-2">
         <NuxtLink to="/recover" class="btn-social w-full">
           <!-- heroicons "key" — the same glyph the account area's Password section
