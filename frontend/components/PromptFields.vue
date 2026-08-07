@@ -2,10 +2,21 @@
 // Renders an authentik prompt stage's fields (used by the Profile and Password
 // tabs). `values` is a reactive object the inputs write straight into via
 // v-model; `errorFor` maps a field_key to its server-side error string.
-defineProps({
+const props = defineProps({
   fields: { type: Array, required: true },
   values: { type: Object, required: true },
-  errorFor: { type: Function, default: () => '' }
+  errorFor: { type: Function, default: () => '' },
+  // Opt-in: show a strength meter under the stage's first password field (the new
+  // password — any later one is the confirmation). Off for prompts where it makes
+  // no sense, e.g. the Profile tab.
+  passwordStrength: { type: Boolean, default: false }
+})
+
+const strengthKey = computed(() => {
+  if (!props.passwordStrength) {
+    return null
+  }
+  return props.fields.find((field) => field.type === 'password')?.field_key ?? null
 })
 
 // Map authentik prompt field types onto native input types (mirrors FlowExecutor).
@@ -73,6 +84,10 @@ function inputType(field) {
           :required="field.required"
           :autocomplete="field.type === 'password' ? 'new-password' : undefined"
           class="field-input"
+        />
+        <PasswordStrength
+          v-if="field.field_key === strengthKey"
+          :password="values[field.field_key] ?? ''"
         />
       </template>
 

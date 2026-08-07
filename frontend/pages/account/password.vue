@@ -61,7 +61,7 @@ onMounted(() => {
         {{ msg.string }}
       </div>
 
-      <PromptFields :fields="fields" :values="values" :error-for="errorFor" />
+      <PromptFields :fields="fields" :values="values" :error-for="errorFor" password-strength />
 
       <div class="flex justify-end">
         <button type="submit" class="btn-primary w-auto px-4" :disabled="saving">

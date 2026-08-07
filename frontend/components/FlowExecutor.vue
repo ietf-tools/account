@@ -577,6 +577,17 @@ async function submitAuthenticator() {
   await submit({ ...selection, code: model.code }).catch(() => {})
 }
 
+// The prompt field that gets a strength meter: the first password field of a prompt
+// stage (a second one is the "repeat" box), on the flows where a password is being
+// *chosen* — enrollment and recovery. Never on ak-stage-password, where the user is
+// typing one they already have and rating it would be noise.
+const strengthKey = computed(() => {
+  if (props.kind === 'authentication' || component.value !== 'ak-stage-prompt') {
+    return null
+  }
+  return challenge.value?.fields?.find((field) => field.type === 'password')?.field_key ?? null
+})
+
 // Map authentik prompt field types onto native input types.
 function inputType(field) {
   return { text: 'text', username: 'text', email: 'email', password: 'password', number: 'number', date: 'date', tel: 'tel', url: 'url' }[field.type] ?? 'text'
@@ -865,6 +876,10 @@ function signOutEntirely() {
               :placeholder="field.placeholder"
               :required="field.required"
               class="field-input"
+            />
+            <PasswordStrength
+              v-if="field.field_key === strengthKey"
+              :password="model[field.field_key] ?? ''"
             />
           </template>
           <p
