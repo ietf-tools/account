@@ -15,3 +15,11 @@ export function gravatarUrl(email, size = 256) {
   const hash = createHash('md5').update(normalised).digest('hex')
   return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=mp`
 }
+
+// Is this stored avatar URL one we built above? Gravatar mode now records a real
+// URL on the user (rather than clearing the attribute), so this is how the avatar
+// route recognises that mode on read — and how the email-change route knows to
+// re-derive the URL, since it is a hash of the address.
+export function isGravatarUrl(url) {
+  return typeof url === 'string' && /^https:\/\/(www\.)?gravatar\.com\//.test(url)
+}

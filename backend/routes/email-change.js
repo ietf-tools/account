@@ -6,6 +6,7 @@ import {
   clientFromRequest,
   AuthentikError
 } from '../lib/authentik.js'
+import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.js'
 import { signEmailChangeToken, verifyEmailChangeToken } from '../lib/token.js'
 import { sendEmailChangeVerification } from '../lib/mailer.js'
 import { config } from '../lib/config.js'
@@ -132,6 +133,12 @@ export default async function emailChangeRoutes(app) {
 
       const attributes = { ...full.attributes }
       delete attributes.pending_email
+      // Gravatar mode stores a URL hashing the address (routes/avatar.js), so it has
+      // to follow the address — otherwise the avatar keeps resolving against the old
+      // one. Uploads and generated initials are address-independent; leave them be.
+      if (isGravatarUrl(attributes.avatar)) {
+        attributes.avatar = gravatarUrl(claims.email)
+      }
       // Write email and username together, kept identical (safe: providers derive
       // the OAuth `sub` from the hashed user ID, unaffected by a username change).
       await patchUser(

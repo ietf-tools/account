@@ -1,14 +1,15 @@
-// Avatar management for the signed-in user: choose Gravatar or upload a picture.
+// Avatar management for the signed-in user: Gravatar, generated initials, or an
+// uploaded picture.
 //
 // Unlike the flow-driven tabs, this goes through the app's own backend (authentik
 // has no self-service avatar upload, and writing attributes.avatar needs the
-// admin token). The backend stores uploads in object storage and puts the image
-// URL — not the bytes — on the authentik user, so the value stays small and
-// cacheable wherever authentik surfaces it (e.g. the OIDC `picture` claim).
+// admin token). Whichever mode is chosen, what lands on the authentik user is a
+// URL — never image bytes — so the value stays small and cacheable wherever
+// authentik surfaces it (e.g. the OIDC `picture` claim):
 //
-//   • Gravatar mode → DELETE clears attributes.avatar; authentik's AVATARS
-//     fallback resolves to the user's Gravatar.
-//   • Upload mode   → POST stores the (backend-normalised) image and sets its URL.
+//   • Gravatar mode → DELETE stores the computed Gravatar URL for the address.
+//   • Initials mode → POST /avatar/initials stores a generated SVG and its URL.
+//   • Upload mode   → POST stores the (backend-normalised) image and its URL.
 //
 // The backend enforces the real limits; the checks here just give fast feedback.
 
@@ -24,14 +25,29 @@ function readAsDataUri(file) {
   })
 }
 
-// An avatar value produced by the "initials" mode: an inline SVG data-URI. Mirrors
-// the backend marker (routes/avatar.js) so we can recognise the mode on read and
-// build a matching dev preview.
+// Mirrors the backend's mode detection (routes/avatar.js): the stored avatar is
+// always a URL, so its shape is what says which mode produced it — a gravatar.com
+// URL, one of our generated `…-avatar-initials-….svg` objects, or an upload. The
+// `data:image/svg+xml` case covers both values written by earlier versions and the
+// dev-only preview below, neither of which the backend ever sends now.
 const INITIALS_PREFIX = 'data:image/svg+xml'
 
+function modeFor(avatar) {
+  if (!avatar) {
+    return 'gravatar'
+  }
+  if (/^https:\/\/(www\.)?gravatar\.com\//.test(avatar)) {
+    return 'gravatar'
+  }
+  if (avatar.startsWith(INITIALS_PREFIX) || /-avatar-initials-[^/]*\.svg$/.test(avatar)) {
+    return 'initials'
+  }
+  return 'upload'
+}
+
 // Client-side twin of the backend's initials SVG, used only for the dev preview
-// when there's no live authentik session. Kept visually consistent with the
-// server-generated one.
+// when there's no live authentik session (nothing is uploaded to storage in that
+// case). Kept visually consistent with the server-generated one.
 function devInitialsDataUri(user) {
   const name = String(user?.name ?? '').trim()
   let initials = '?'
@@ -122,11 +138,11 @@ export function useAvatar() {
         // No live authentik session in dev — reflect what the store knows so the
         // tab is still workable (see useApplications for the same pattern).
         const custom = auth.user?.avatar || null
-        const isInitials = typeof custom === 'string' && custom.startsWith(INITIALS_PREFIX)
+        const resolved = modeFor(custom)
         current.value = custom
-        uploaded.value = isInitials ? null : custom
+        uploaded.value = resolved === 'upload' ? custom : null
         gravatar.value = await devGravatar(auth.user?.email).catch(() => null)
-        mode.value = isInitials ? 'initials' : custom ? 'upload' : 'gravatar'
+        mode.value = resolved
         usingSample.value = true
       } else {
         error.value =

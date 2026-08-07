@@ -56,16 +56,25 @@ export function keyFromUrl(url) {
 
 // Store the (already-processed) image bytes under a content-hashed key and
 // return both the key and its public URL. `variant` distinguishes the kinds we
-// store per user (e.g. 'avatar', 'portrait'). Long, immutable cache headers are
-// safe because the hash makes the key unique to the content.
-export async function putImage(userPk, variant, buffer, contentHash) {
-  const key = `${storage.keyPrefix}${userPk}-${variant}-${contentHash}.webp`
+// store per user (e.g. 'avatar', 'avatar-initials', 'portrait') and is part of
+// the key, so a route can tell which kind a stored URL is just by reading it
+// back. Long, immutable cache headers are safe because the hash makes the key
+// unique to the content. Defaults are the WebP the upload routes produce;
+// generated SVGs pass their own type/extension.
+export async function putImage(
+  userPk,
+  variant,
+  buffer,
+  contentHash,
+  { contentType = 'image/webp', extension = 'webp' } = {}
+) {
+  const key = `${storage.keyPrefix}${userPk}-${variant}-${contentHash}.${extension}`
   await getClient().send(
     new PutObjectCommand({
       Bucket: storage.bucket,
       Key: key,
       Body: buffer,
-      ContentType: 'image/webp',
+      ContentType: contentType,
       CacheControl: 'public, max-age=31536000, immutable'
     })
   )
