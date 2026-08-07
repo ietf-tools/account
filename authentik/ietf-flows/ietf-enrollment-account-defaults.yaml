@@ -1,0 +1,105 @@
+---
+# Account defaults stamped onto every newly enrolled user — an expression policy
+# bound to the *user write* binding of the enrollment flows (`ietf-enrollment`,
+# the manual sign-up form, and optionally `ietf-social-enrollment`, first-time
+# account creation from Apple/GitHub/Google).
+#
+# Like ietf-note-well-consent.yaml, this is NOT an export of live config — it's a
+# hand-written blueprint you can apply (or copy into the admin UI by hand).
+#
+# How it works: prompt_data keys prefixed `attributes.` are written into
+# `user.attributes` by the user write stage (a dotted path nests), so a policy on
+# the write binding can inject values the sign-up form never asked for. Same trick
+# as ietf-enrollment-set-username-from-email / ietf-enrollment-record-note-well.
+#
+# Two rules for this kind of policy:
+#   * it must be bound to the **user write binding**, not the flow root — and it
+#     must return True unconditionally, because a binding policy returning False
+#     *skips* the stage, i.e. no account gets created;
+#   * it must not be the thing that decides anything. It only mutates prompt_data.
+#
+# Result on the created user:
+#   attributes.recovery_emails = []
+#   attributes.avatar          = "https://www.gravatar.com/avatar/<md5>?s=256&d=mp"
+context: {}
+entries:
+- attrs:
+    execution_logging: false
+    expression: |
+      import hashlib
+
+      prompt_data = request.context["prompt_data"]
+
+      # Seed the recovery-address list so the account page reads a real (empty)
+      # list rather than a missing key.
+      prompt_data["attributes.recovery_emails"] = []
+
+      # attributes.avatar is always a URL, in every mode (see
+      # backend/routes/avatar.js) — never empty, never image bytes, because other
+      # apps read it straight through as the OIDC `picture` claim. A new account
+      # starts in Gravatar mode, so seed the computed Gravatar URL for the address:
+      # MD5 of the trimmed, lower-cased email, byte-for-byte what
+      # backend/lib/gravatar.js builds, so switching modes later is a no-op change.
+      # `d=mp` serves the neutral silhouette when the address has no Gravatar.
+      email = (prompt_data.get("email") or "").strip().lower()
+      if email:
+          digest = hashlib.md5(email.encode("utf-8"), usedforsecurity=False).hexdigest()
+          prompt_data["attributes.avatar"] = f"https://www.gravatar.com/avatar/{digest}?s=256&d=mp"
+
+      return True
+    name: ietf-enrollment-set-account-defaults
+  conditions: []
+  identifiers:
+    pk: cad30108-5f3b-4cb0-9502-f98c50a0653c
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+
+# --- Binding: manual enrollment (ietf-enrollment) ---------------------------
+# Its user write binding already carries ietf-enrollment-set-username-from-email
+# (order 0) and ietf-enrollment-record-note-well (order 1). Order only matters
+# against policies touching the same keys, which these don't — but keep the
+# username policy first, since this one reads prompt_data["email"].
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 2
+    pk: 859b102d-e8dc-4204-af93-ff79ddbdc7b7
+    policy: cad30108-5f3b-4cb0-9502-f98c50a0653c
+    target: 699c532f-b3e9-4cec-8ba0-156a8eb21f0c
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+
+# --- Binding: social enrollment (ietf-social-enrollment) --------------------
+# Optional — drop this entry if the defaults should apply to manual sign-ups only.
+# The social flow doesn't set an avatar of its own (the provider's picture is not
+# copied), and its prompt stage carries the same `email` key prefilled from the
+# source, so the policy behaves identically there.
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 2
+    pk: f8f1828f-3039-4de2-8cb6-708af46d6a66
+    policy: cad30108-5f3b-4cb0-9502-f98c50a0653c
+    target: 06d2a3d3-248c-4c39-9131-758080551273
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/description: IETF enrollment account defaults (recovery_emails, avatar)
+  name: ietf-enrollment-account-defaults
+version: 1

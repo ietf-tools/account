@@ -7,7 +7,11 @@ import {
   AuthentikError
 } from '../lib/authentik.js'
 import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.js'
-import { signEmailChangeToken, verifyEmailChangeToken } from '../lib/token.js'
+import {
+  signVerificationToken,
+  verifyVerificationToken,
+  PURPOSE_EMAIL_CHANGE
+} from '../lib/token.js'
 import { sendEmailChangeVerification } from '../lib/mailer.js'
 import { config } from '../lib/config.js'
 
@@ -83,7 +87,12 @@ export default async function emailChangeRoutes(app) {
       const attributes = { ...full.attributes, pending_email: email }
       await patchUser(user.pk, { attributes }, client)
 
-      const token = signEmailChangeToken({ pk: user.pk, email, ttlSeconds: TTL_SECONDS })
+      const token = signVerificationToken({
+        purpose: PURPOSE_EMAIL_CHANGE,
+        pk: user.pk,
+        email,
+        ttlSeconds: TTL_SECONDS
+      })
       const url = `${config.publicAppUrl}/verify-email-change?token=${encodeURIComponent(token)}`
       await sendEmailChangeVerification({
         to: email,
@@ -108,7 +117,7 @@ export default async function emailChangeRoutes(app) {
   app.post('/verify', async (request, reply) => {
     let claims = null
     try {
-      claims = verifyEmailChangeToken(request.body?.token)
+      claims = verifyVerificationToken(request.body?.token, PURPOSE_EMAIL_CHANGE)
     } catch {
       return reply.badRequest('This confirmation link is invalid or has expired.')
     }

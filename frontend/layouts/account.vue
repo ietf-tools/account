@@ -2,6 +2,8 @@
 // The signed-in account shell: a wide, centered box with a fixed sidebar of
 // account sections on the left and the active section's content on the right.
 // Every /account/* page uses this layout (definePageMeta layout: 'account').
+import { LifebuoyMailIcon } from '#components'
+
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -10,6 +12,8 @@ const appVersion = useRuntimeConfig().public.appVersion
 
 // Sidebar sections, in display order. Each maps to a page under pages/account/.
 // `icon` is the `d` of a single heroicons (v2, outline) path drawn in the nav.
+// `iconComponent` is the escape hatch for a glyph that needs more than one path
+// (it renders instead of `icon`, sized the same) — see LifebuoyMailIcon.
 const items = [
   {
     to: '/account/applications',
@@ -40,6 +44,11 @@ const items = [
     to: '/account/connected',
     label: 'Connected Services',
     icon: 'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244'
+  },
+  {
+    to: '/account/recovery-emails',
+    label: 'Recovery Emails',
+    iconComponent: LifebuoyMailIcon
   },
   {
     to: '/account/sessions',
@@ -165,7 +174,9 @@ async function launchConfetti(event) {
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               "
             >
+              <component :is="item.iconComponent" v-if="item.iconComponent" class="h-5 w-5 shrink-0" />
               <svg
+                v-else
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"

@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto'
 export function gravatarUrl(email, size = 256) {
   const normalised = String(email ?? '').trim().toLowerCase()
   const hash = createHash('md5').update(normalised).digest('hex')
-  return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=mp`
+  return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=identicon`
 }
 
 // Is this stored avatar URL one we built above? Gravatar mode now records a real

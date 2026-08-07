@@ -118,6 +118,13 @@ fresh cookie jar per `begin`.)
   nesting — the checkbox's own bare key is discarded by the write stage. Hence the stage must be bound
   before user write, and that policy must return `True` unconditionally (a stage binding policy
   returning `False` *skips* the stage — here, no account).
+- **New-account defaults are stamped by a policy on the enrollment *user write* binding** —
+  [ietf-enrollment-account-defaults.yaml](authentik/ietf-flows/ietf-enrollment-account-defaults.yaml)
+  seeds `attributes.recovery_emails = []` and `attributes.avatar` = the Gravatar URL for the signed-up
+  address (same MD5 recipe as [backend/lib/gravatar.js](backend/lib/gravatar.js), because
+  `attributes.avatar` is *always* a URL — see [backend/routes/avatar.js](backend/routes/avatar.js)).
+  Same `attributes.…`-into-`prompt_data` mechanism as the note-well recorder above; like it, the
+  policy must return `True` unconditionally, or the write stage is skipped and no account is created.
 - **"Stay signed in" (`ak-stage-user-login`) is coupled to server config.** The user login stage runs
   headlessly *unless* its `remember_me_offset` is non-zero, in which case it emits a challenge that
   **requires** a `remember_me` boolean back (session then lasts `session_duration + remember_me_offset`;
