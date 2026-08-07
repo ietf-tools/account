@@ -25,6 +25,11 @@ const SECRET = config.session.secret
 
 export const PURPOSE_EMAIL_CHANGE = 'email-change'
 export const PURPOSE_RECOVERY_EMAIL = 'recovery-email'
+// Strictly more powerful than the other two: holding a valid one of these lets the
+// bearer take the account over (new primary address + new password). Minted only
+// for an address already confirmed on the account, and given a shorter life — see
+// routes/account-recovery.js.
+export const PURPOSE_ACCOUNT_RECOVERY = 'account-recovery'
 
 function b64url(buf) {
   return Buffer.from(buf).toString('base64url')

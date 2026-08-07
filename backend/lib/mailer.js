@@ -198,6 +198,33 @@ export async function sendEmailChangeVerification({ to, name, url, expiresText }
   })
 }
 
+// Send the account-recovery link to a confirmed recovery address. Opening it lets
+// the recipient set a new primary address and password on `account`, so the wording
+// leans hard on "if this wasn't you" — see backend/routes/account-recovery.js.
+export async function sendAccountRecoveryVerification({ to, name, url, expiresText, account }) {
+  await sendActionEmail({
+    to,
+    subject: 'Recover your IETF account',
+    title: 'Recover your IETF account',
+    preheader: 'Use this link to regain access to your IETF account.',
+    heading: 'Recover your account',
+    name,
+    paragraphs: [
+      `We received a request to recover the IETF account ${account}, using this address — ` +
+        'one of the recovery email addresses confirmed on it.',
+      'Opening the link below lets you choose a new primary email address for the account ' +
+        'and set a new password. The current address will no longer be used to sign in.'
+    ],
+    buttonLabel: 'Recover my account',
+    url,
+    expiresText,
+    closing:
+      "If you didn't request this, you can safely ignore this email — nothing changes unless " +
+      'this link is opened and the form on it is submitted. If you get these unexpectedly, ' +
+      'contact support@ietf.org.'
+  })
+}
+
 // Send the recovery-address confirmation to the address being ADDED. Until this
 // link is opened and confirmed, the address is not on the account's recovery list
 // — see backend/routes/recovery-emails.js.

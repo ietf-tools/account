@@ -16,10 +16,11 @@ const finalizing = ref(route.query.social === 'return')
 // of — see onComplete.
 const signInError = ref(null)
 
-// The sign-up / password-reset links belong beside the sign-in form, so they show on
-// the stages that ARE that form and nowhere else: once credentials are in and the
-// flow has moved on to verifying identity (MFA), "Stay signed in?" or the closing
-// redirect, offering to create an account is noise.
+// The sign-up link belongs beside the sign-in form, so it shows on the stages that
+// ARE that form and nowhere else: once credentials are in and the flow has moved on
+// to verifying identity (MFA), "Stay signed in?" or the closing redirect, offering
+// to create an account is noise. (The recovery buttons are gated separately, by
+// FlowExecutor's `recovery` slot — password stage only.)
 const FORM_STAGES = new Set(['ak-stage-identification', 'ak-stage-password'])
 
 // Legacy Datatracker migration isn't open to the public yet: production shows the
@@ -130,20 +131,50 @@ onMounted(async () => {
         </component>
       </div>
     </template>
+    <!-- Renders under the Continue button on the password stage only (FlowExecutor
+         gates the slot), so the two ways out of a forgotten password sit with the
+         form they apply to. -->
+    <template #recovery="{ challenge }">
+      <hr class="mb-4 border-t border-slate-200" />
+      <div class="space-y-2">
+        <NuxtLink to="/recover" class="btn-social w-full">
+          <!-- heroicons "key" — the same glyph the account area's Password section
+               uses, so the two read as the same subject. -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-5 w-5 shrink-0" aria-hidden="true">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H9v1.5H7.5v1.5H6v1.5H3.75a.75.75 0 01-.75-.75v-2.19a.75.75 0 01.22-.53l6.638-6.638c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
+            />
+          </svg>
+          <span>Reset your password</span>
+        </NuxtLink>
+        <!-- Carry who we're signing in as, so the recovery page can name the
+             account instead of asking for it again. authentik puts it on the
+             password challenge as `pending_user`. -->
+        <NuxtLink
+          :to="{
+            path: '/recover-account',
+            query: challenge?.pending_user ? { account: challenge.pending_user } : {}
+          }"
+          class="btn-social w-full"
+        >
+          <!-- The Recovery Emails glyph (layouts/account.vue): this is the flow that
+               gets you back in via a confirmed recovery address. -->
+          <LifebuoyMailIcon class="h-5 w-5 shrink-0" />
+          <span>Recover an account</span>
+        </NuxtLink>
+      </div>
+    </template>
     <template #footer="{ component }">
       <p v-if="signInError" class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
         {{ signInError }}
       </p>
       <!-- Only on the sign-in form itself (see FORM_STAGES) — and the divider goes
-           with the links, so later stages don't end on a stray rule. -->
+           with the link, so later stages don't end on a stray rule. -->
       <template v-if="FORM_STAGES.has(component)">
         <hr class="mb-6 border-t border-slate-200" />
-        <div class="space-y-1">
-          <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
-          <p v-if="component === 'ak-stage-password'">
-            <NuxtLink to="/recover" class="link">Forgot your password?</NuxtLink>
-          </p>
-        </div>
+        <p>No account? <NuxtLink to="/register" class="link">Create one</NuxtLink></p>
       </template>
     </template>
   </FlowExecutor>

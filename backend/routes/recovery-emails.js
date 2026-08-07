@@ -12,6 +12,12 @@ import {
   PURPOSE_RECOVERY_EMAIL
 } from '../lib/token.js'
 import { sendRecoveryEmailVerification } from '../lib/mailer.js'
+import {
+  RECOVERY_EMAILS_KEY,
+  normalizeRecoveryEmail as normalize,
+  storedRecoveryEmails,
+  hasRecoveryEmail as hasAddress
+} from '../lib/recovery-emails.js'
 import { config } from '../lib/config.js'
 
 /**
@@ -41,7 +47,7 @@ import { config } from '../lib/config.js'
  * someone back into an account.
  */
 export default async function recoveryEmailsRoutes(app) {
-  const ATTRIBUTE_KEY = 'recovery_emails'
+  const ATTRIBUTE_KEY = RECOVERY_EMAILS_KEY
   const PENDING_KEY = 'pending_recovery_email'
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const TTL_SECONDS = 60 * 60 // 1 hour
@@ -49,34 +55,11 @@ export default async function recoveryEmailsRoutes(app) {
   // `attributes` is a JSON blob on the user and each add sends mail to an arbitrary
   // address, so the list is capped. Reported by GET so the UI states the limit
   // rather than only discovering it as an error.
-  const MAX_ADDRESSES = 10
+  const MAX_ADDRESSES = 5
 
-  // Entries are written as plain address strings. Hand-edited accounts may hold
-  // objects ({ email | address, … }), so accept those too rather than dropping them
-  // silently — the list is what a user relies on to get back into their account.
-  // Returns null for anything unreadable.
-  function normalize(entry) {
-    if (typeof entry === 'string') {
-      return { email: entry.trim() }
-    }
-    if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-      const email = entry.email ?? entry.address
-      if (typeof email === 'string' && email.trim()) {
-        return { email: email.trim() }
-      }
-    }
-    return null
-  }
-
-  function hasAddress(stored, email) {
-    const target = email.toLowerCase()
-    return stored.some((entry) => normalize(entry)?.email.toLowerCase() === target)
-  }
-
-  function storedList(full) {
-    const stored = full.attributes?.[ATTRIBUTE_KEY]
-    return Array.isArray(stored) ? stored : []
-  }
+  // How an entry is read, and how addresses are compared, is shared with the
+  // account-recovery flow — see lib/recovery-emails.js for why.
+  const storedList = storedRecoveryEmails
 
   // Resolve the acting user from their authentik session cookie, or reply 401.
   async function requireCaller(request, reply) {

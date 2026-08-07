@@ -1086,6 +1086,16 @@ function signOutEntirely() {
       </button>
     </form>
 
+    <!-- Ways out of a password the user can't produce, shown directly under the
+         password form: someone stuck at this stage needs them here, not in the
+         small print at the foot of the card. Host-provided (see login.vue), so the
+         generic executor stays free of app-specific routes. -->
+    <div v-if="$slots.recovery && component === 'ak-stage-password'" class="mt-6">
+      <!-- `challenge` rides along so the host can carry who we're signing in as
+           (challenge.pending_user) into a recovery route. -->
+      <slot name="recovery" :challenge="challenge" />
+    </div>
+
     <!-- Passwordless: sign in with a passkey. authentik exposes passwordless_url on
          the identification challenge when a passwordless flow is configured; we
          drive that flow's slug through the executor so it stays in this UI. -->

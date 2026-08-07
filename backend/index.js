@@ -17,6 +17,7 @@ import emailChangeRoutes from './routes/email-change.js'
 import githubRoutes from './routes/github.js'
 import datatrackerRoutes from './routes/datatracker.js'
 import recoveryEmailsRoutes from './routes/recovery-emails.js'
+import accountRecoveryRoutes from './routes/account-recovery.js'
 import healthRoutes from './routes/health.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -64,6 +65,8 @@ await app.register(emailChangeRoutes, { prefix: `${config.apiPrefix}/email-chang
 await app.register(githubRoutes, { prefix: `${config.apiPrefix}/github` })
 await app.register(datatrackerRoutes, { prefix: `${config.apiPrefix}/datatracker` })
 await app.register(recoveryEmailsRoutes, { prefix: `${config.apiPrefix}/recovery-emails` })
+// Unauthenticated by design — the signed link is the authorisation. See the route.
+await app.register(accountRecoveryRoutes, { prefix: `${config.apiPrefix}/account-recovery` })
 
 // In production the built SPA (nuxt generate -> .output/public) is served by
 // this same server, so the browser only ever talks to one origin.
