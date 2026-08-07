@@ -18,6 +18,40 @@ entries:
   permissions: []
   state: present
 - attrs:
+    field_key: note_well_agreed
+    initial_value: ''
+    initial_value_expression: false
+    label: I agree to follow IETF processes and policies, a reminder of which is given
+      in the <a href="https://www.ietf.org/about/note-well/" target="_blank">IETF
+      Note Well</a>, and in doing so I consent to the use of my information in accordance
+      with the <a href="https://www.ietf.org/privacy-statement/" target="_blank">IETF/IRTF/IAB
+      Privacy Statement</a>.
+    name: ietf-enrollment-field-note-well
+    order: 0
+    placeholder: ''
+    placeholder_expression: false
+    required: false
+    sub_text: ''
+    type: checkbox
+  conditions: []
+  identifiers:
+    pk: b44ed6bf-0da8-4641-b17c-00829a508889
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: "if request.context[\"prompt_data\"].get(\"note_well_agreed\", False):\n\
+      \    return True\nak_message(\"You must agree to the IETF Note Well and Privacy\
+      \ Statement to continue.\")\nreturn False"
+    name: ietf-enrollment-require-note-well
+  conditions: []
+  identifiers:
+    pk: f85ba29d-2f0e-49ef-8bdf-234f1c739db3
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
     execution_logging: false
     expression: 'email = request.context["prompt_data"]["email"]
 
@@ -28,6 +62,21 @@ entries:
   conditions: []
   identifiers:
     pk: 33e9d3ea-6031-4e1b-96eb-8ba865500626
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: "import hashlib\n\nprompt_data = request.context[\"prompt_data\"]\n\
+      \nprompt_data[\"attributes.recovery_emails\"] = []\n\nemail = (prompt_data.get(\"\
+      email\") or \"\").strip().lower()\nif email:\n    digest = hashlib.md5(email.encode(\"\
+      utf-8\"), usedforsecurity=False).hexdigest()\n    prompt_data[\"attributes.avatar\"\
+      ] = f\"https://www.gravatar.com/avatar/{digest}?s=256&d=identicon\"\n\nreturn\
+      \ True"
+    name: ietf-enrollment-set-attributes-defaults
+  conditions: []
+  identifiers:
+    pk: b314f4ee-f9ce-4528-a66d-ac0ebd9eb7d9
   model: authentik_policies_expression.expressionpolicy
   permissions: []
   state: present
@@ -46,6 +95,31 @@ entries:
   permissions: []
   state: present
 - attrs:
+    execution_logging: false
+    expression: "from datetime import datetime, timezone\n\nprompt_data = request.context[\"\
+      prompt_data\"]\nif prompt_data.get(\"note_well_agreed\", False):\n    prompt_data[\"\
+      attributes.note_well.agreed\"] = True\n    prompt_data[\"attributes.note_well.agreed_at\"\
+      ] = datetime.now(timezone.utc).isoformat()\nreturn True"
+    name: ietf-enrollment-record-note-well
+  conditions: []
+  identifiers:
+    pk: 7edb709e-69f0-4d40-b281-eeb343db9214
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - b44ed6bf-0da8-4641-b17c-00829a508889
+    validation_policies:
+    - f85ba29d-2f0e-49ef-8bdf-234f1c739db3
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-prompt-note-well
+    pk: ccafa990-a5ce-4b1f-8d15-b3b8b7c77dbe
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
     create_users_as_inactive: false
     create_users_group: null
     user_creation_mode: always_create
@@ -59,10 +133,25 @@ entries:
   permissions: []
   state: present
 - attrs:
+    api_url: https://challenges.cloudflare.com/turnstile/v0/siteverify
+    error_on_invalid_score: true
+    interactive: true
+    js_url: https://challenges.cloudflare.com/turnstile/v0/api.js
+    public_key: 0x4AAAAAAEFstHgQxtGrOk4E
+    score_max_threshold: 1.0
+    score_min_threshold: 0.5
+  conditions: []
+  identifiers:
+    name: ietf-cf-turnstile
+    pk: f98a9016-fb36-43cb-bfef-796aebb3b840
+  model: authentik_stages_captcha.captchastage
+  permissions: []
+  state: present
+- attrs:
     geoip_binding: no_binding
     network_binding: no_binding
     remember_device: days=30
-    remember_me_offset: seconds=0
+    remember_me_offset: days=30
     session_duration: seconds=0
     terminate_other_sessions: false
   conditions: []
@@ -70,6 +159,34 @@ entries:
     name: ietf-enrollment-login
     pk: 6b6db9d9-40e8-417b-a51a-6554e1ea7bf1
   model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 5
+    pk: a651799c-b6c4-4cff-80f5-368fbb6297af
+    stage: ccafa990-a5ce-4b1f-8d15-b3b8b7c77dbe
+    target: cd483331-30bd-400f-afb7-1a426a33deb6
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 10
+    pk: cfde6cef-0345-479e-bef1-78966323a1d2
+    stage: f98a9016-fb36-43cb-bfef-796aebb3b840
+    target: cd483331-30bd-400f-afb7-1a426a33deb6
+  model: authentik_flows.flowstagebinding
   permissions: []
   state: present
 - attrs:
@@ -109,6 +226,38 @@ entries:
     user: null
   conditions: []
   identifiers:
+    order: 1
+    pk: bee5430e-48f8-43d5-ac1b-5a2bfb8135d8
+    policy: b314f4ee-f9ce-4528-a66d-ac0ebd9eb7d9
+    target: 06d2a3d3-248c-4c39-9131-758080551273
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 2
+    pk: c4bae561-a8c8-4a68-9bd4-370c01c53a62
+    policy: 7edb709e-69f0-4d40-b281-eeb343db9214
+    target: 06d2a3d3-248c-4c39-9131-758080551273
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
     order: 0
     pk: ac88c28a-9177-4ebc-a6f0-ae1ac42af521
     policy: 33e9d3ea-6031-4e1b-96eb-8ba865500626
@@ -135,5 +284,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-07-21 05:59:26.048672+00:00
+  name: authentik Export - 2026-08-07 20:02:10.464031+00:00
 version: 1

@@ -32,10 +32,46 @@ entries:
   permissions: []
   state: present
 - attrs:
+    execution_logging: false
+    expression: "user = context.get(\"pending_user\")\ngh = context.get(\"prompt_data\"\
+      , {}).get(\"attributes\", {}).get(\"github\")\nif user and user.pk and gh:\n\
+      \    user.attributes.setdefault(\"github\", {}).update(gh)\n    user.save()\n\
+      return True"
+    name: ietf-github-username-to-attributes
+  conditions: []
+  identifiers:
+    pk: 62045301-bd75-4e91-a101-ccc276b57991
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: "source = request.context.get(\"source\")\nif not source or \"github\"\
+      \ not in source.slug.lower():\n    return False\nuser = request.context.get(\"\
+      pending_user\")\nif not user or not user.pk:\n    return False\nreturn bool((user.attributes.get(\"\
+      github\") or {}).get(\"login_disabled\"))"
+    name: ietf-github-disable-signin
+  conditions: []
+  identifiers:
+    pk: 9b23b539-ec94-4110-a4de-e0ab12db903b
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    deny_message: GitHub sign-in is disabled for this account. Use a different login
+      method.
+  conditions: []
+  identifiers:
+    name: ietf-github-signin-disabled
+    pk: b07e5641-febb-4fe6-bef7-7a02d45a4904
+  model: authentik_stages_deny.denystage
+  permissions: []
+  state: present
+- attrs:
     geoip_binding: no_binding
     network_binding: no_binding
     remember_device: days=30
-    remember_me_offset: seconds=0
+    remember_me_offset: days=30
     session_duration: seconds=0
     terminate_other_sessions: false
   conditions: []
@@ -53,10 +89,56 @@ entries:
   conditions: []
   identifiers:
     order: 0
+    pk: e942200d-5794-4a73-bf85-f77fc45e4af0
+    stage: b07e5641-febb-4fe6-bef7-7a02d45a4904
+    target: 4a517065-bb38-4f10-a6e6-7cae20778535
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 10
     pk: 203083d4-14b3-4460-8823-61fd11494ad0
     stage: bfda51f2-6440-4a35-9ef9-c294a408ee00
     target: 4a517065-bb38-4f10-a6e6-7cae20778535
   model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 314754c6-a6f6-4b1f-9d0c-1bc54e889870
+    policy: 9b23b539-ec94-4110-a4de-e0ab12db903b
+    target: e942200d-5794-4a73-bf85-f77fc45e4af0
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 438cdeb8-7232-4d4a-9755-a73eacf6ea64
+    policy: 62045301-bd75-4e91-a101-ccc276b57991
+    target: 203083d4-14b3-4460-8823-61fd11494ad0
+  model: authentik_policies.policybinding
   permissions: []
   state: present
 - attrs:
@@ -78,5 +160,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-07-21 05:59:30.037290+00:00
+  name: authentik Export - 2026-08-07 20:01:36.960820+00:00
 version: 1

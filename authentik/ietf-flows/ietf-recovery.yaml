@@ -76,19 +76,6 @@ entries:
   permissions: []
   state: present
 - attrs:
-    create_users_as_inactive: false
-    create_users_group: null
-    user_creation_mode: never_create
-    user_path_template: users
-    user_type: internal
-  conditions: []
-  identifiers:
-    name: ietf-recovery-write-data-stage
-    pk: 2e638da7-7d08-4504-a477-3f05adde7c67
-  model: authentik_stages_user_write.userwritestage
-  permissions: []
-  state: present
-- attrs:
     activate_user_on_success: true
     from_address: system@authentik.local
     host: localhost
@@ -96,7 +83,7 @@ entries:
     recovery_cache_timeout: minutes=5
     recovery_max_attempts: 5
     subject: Reset IETF account password
-    template: email/password_reset.html
+    template: ietf_password_reset.html
     timeout: 10
     token_expiry: minutes=30
     use_global_settings: true
@@ -111,6 +98,35 @@ entries:
   permissions: []
   state: present
 - attrs:
+    api_url: https://challenges.cloudflare.com/turnstile/v0/siteverify
+    error_on_invalid_score: true
+    interactive: true
+    js_url: https://challenges.cloudflare.com/turnstile/v0/api.js
+    public_key: 0x4AAAAAAEFstHgQxtGrOk4E
+    score_max_threshold: 1.0
+    score_min_threshold: 0.5
+  conditions: []
+  identifiers:
+    name: ietf-cf-turnstile
+    pk: f98a9016-fb36-43cb-bfef-796aebb3b840
+  model: authentik_stages_captcha.captchastage
+  permissions: []
+  state: present
+- attrs:
+    geoip_binding: bind_continent
+    network_binding: bind_asn
+    remember_device: days=30
+    remember_me_offset: days=30
+    session_duration: seconds=0
+    terminate_other_sessions: false
+  conditions: []
+  identifiers:
+    name: ietf-recovery-login-stage
+    pk: 8c6ce2ad-2f40-4e5f-aa4e-8212a99e044b
+  model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
     fields:
     - 9bc921cc-24a7-49cf-b3bc-2d775f180b85
     - ab907512-cd6d-47aa-a569-554f30824324
@@ -121,6 +137,19 @@ entries:
     name: ietf-recovery-change-password-stage
     pk: 2271c89b-fda4-46bd-a019-76607ebf2f85
   model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    create_users_as_inactive: false
+    create_users_group: null
+    user_creation_mode: never_create
+    user_path_template: users
+    user_type: internal
+  conditions: []
+  identifiers:
+    name: ietf-recovery-write-data-stage
+    pk: 2e638da7-7d08-4504-a477-3f05adde7c67
+  model: authentik_stages_user_write.userwritestage
   permissions: []
   state: present
 - attrs:
@@ -146,20 +175,6 @@ entries:
   permissions: []
   state: present
 - attrs:
-    geoip_binding: bind_continent
-    network_binding: bind_asn
-    remember_device: days=30
-    remember_me_offset: seconds=0
-    session_duration: seconds=0
-    terminate_other_sessions: false
-  conditions: []
-  identifiers:
-    name: ietf-recovery-login-stage
-    pk: 8c6ce2ad-2f40-4e5f-aa4e-8212a99e044b
-  model: authentik_stages_user_login.userloginstage
-  permissions: []
-  state: present
-- attrs:
     evaluate_on_plan: false
     invalid_response_action: retry
     policy_engine_mode: any
@@ -180,7 +195,21 @@ entries:
     re_evaluate_policies: true
   conditions: []
   identifiers:
-    order: 1
+    order: 5
+    pk: 98879fe6-ec01-472f-b99b-eb0a316da7a5
+    stage: f98a9016-fb36-43cb-bfef-796aebb3b840
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 10
     pk: a9603b86-f39b-4bab-9b0c-078525c7f0b0
     stage: 6ee51afb-a4e4-4365-9504-9a4a08075dda
     target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
@@ -194,7 +223,7 @@ entries:
     re_evaluate_policies: true
   conditions: []
   identifiers:
-    order: 2
+    order: 20
     pk: 0d90bccf-8373-4312-b2af-285831623f53
     stage: 2271c89b-fda4-46bd-a019-76607ebf2f85
     target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
@@ -208,7 +237,7 @@ entries:
     re_evaluate_policies: true
   conditions: []
   identifiers:
-    order: 3
+    order: 30
     pk: ea762035-06de-4982-bf17-e002893e4ee7
     stage: 2e638da7-7d08-4504-a477-3f05adde7c67
     target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
@@ -222,7 +251,7 @@ entries:
     re_evaluate_policies: true
   conditions: []
   identifiers:
-    order: 4
+    order: 40
     pk: d10c2396-3fcf-4002-9327-502957e28be4
     stage: 8c6ce2ad-2f40-4e5f-aa4e-8212a99e044b
     target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
@@ -232,5 +261,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-07-21 05:59:16.422322+00:00
+  name: authentik Export - 2026-08-07 20:02:23.607023+00:00
 version: 1

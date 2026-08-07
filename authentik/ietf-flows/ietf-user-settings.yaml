@@ -18,24 +18,6 @@ entries:
   permissions: []
   state: present
 - attrs:
-    field_key: attributes.location
-    initial_value: return request.user.attributes.get("location", "")
-    initial_value_expression: true
-    label: Location
-    name: ietf-user-settings-field-location
-    order: 500
-    placeholder: "e.g. Montr\xE9al, Canada"
-    placeholder_expression: false
-    required: false
-    sub_text: ''
-    type: text
-  conditions: []
-  identifiers:
-    pk: 5c46e8bf-74f3-4266-9f53-0fae5e384f86
-  model: authentik_stages_prompt.prompt
-  permissions: []
-  state: present
-- attrs:
     field_key: name
     initial_value: "try:\n    return user.name\nexcept:\n    return ''"
     initial_value_expression: true
@@ -54,50 +36,13 @@ entries:
   permissions: []
   state: present
 - attrs:
-    field_key: attributes.company
-    initial_value: return request.user.attributes.get("company", "")
-    initial_value_expression: true
-    label: Company / Affiliation
-    name: ietf-user-settings-field-company
-    order: 600
-    placeholder: e.g. ACME Corporation
-    placeholder_expression: false
-    required: false
-    sub_text: ''
-    type: text
-  conditions: []
-  identifiers:
-    pk: fa8953a3-2ced-4734-bfca-6a954fe97aa2
-  model: authentik_stages_prompt.prompt
-  permissions: []
-  state: present
-- attrs:
-    field_key: email
-    initial_value: "try:\n    return user.email\nexcept:\n    return ''"
-    initial_value_expression: true
-    label: Email Address
-    name: ietf-user-settings-field-email
-    order: 250
-    placeholder: e.g. user@example.com
-    placeholder_expression: false
-    required: true
-    sub_text: Note that changing this field will trigger an email validation to confirm
-      you own this email address.
-    type: text
-  conditions: []
-  identifiers:
-    pk: e4771802-933d-4c46-9512-31042cfbcd5c
-  model: authentik_stages_prompt.prompt
-  permissions: []
-  state: present
-- attrs:
     field_key: attributes.pronouns
     initial_value: return request.user.attributes.get("pronouns", "")
     initial_value_expression: true
     label: Pronouns
     name: ietf-user-settings-field-pronouns
     order: 400
-    placeholder: e.g. he/him, she/her
+    placeholder: e.g. he/him, she/her, they/them
     placeholder_expression: false
     required: false
     sub_text: Optionally provide your personal pronouns. These will be displayed on
@@ -110,20 +55,40 @@ entries:
   permissions: []
   state: present
 - attrs:
+    field_key: attributes.nickname
+    initial_value: ''
+    initial_value_expression: false
+    label: Nickname
+    name: ietf-user-settings-field-nickname
+    order: 210
+    placeholder: e.g. Bob
+    placeholder_expression: false
+    required: false
+    sub_text: An optional short nickname to be used on some applications in lieu of
+      the full name.
+    type: text
+  conditions: []
+  identifiers:
+    pk: 4fb237b6-1a71-4056-aebb-25028be74077
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
     execution_logging: false
     expression: "from authentik.core.models import (\n    USER_ATTRIBUTE_CHANGE_EMAIL,\n\
       \    USER_ATTRIBUTE_CHANGE_NAME,\n    USER_ATTRIBUTE_CHANGE_USERNAME\n)\nprompt_data\
       \ = request.context.get(\"prompt_data\")\n\nif not request.user.group_attributes(request.http_request).get(\n\
       \    USER_ATTRIBUTE_CHANGE_EMAIL, request.http_request.tenant.default_user_change_email\n\
-      ):\n    if prompt_data.get(\"email\") != request.user.email:\n        ak_message(\"\
-      Not allowed to change email address.\")\n        return False\n\nif not request.user.group_attributes(request.http_request).get(\n\
+      ):\n    if prompt_data.get(\"email\", request.user.email) != request.user.email:\n\
+      \        ak_message(\"Not allowed to change email address.\")\n        return\
+      \ False\n\nif not request.user.group_attributes(request.http_request).get(\n\
       \    USER_ATTRIBUTE_CHANGE_NAME, request.http_request.tenant.default_user_change_name\n\
-      ):\n    if prompt_data.get(\"name\") != request.user.name:\n        ak_message(\"\
-      Not allowed to change name.\")\n        return False\n\nif not request.user.group_attributes(request.http_request).get(\n\
-      \    USER_ATTRIBUTE_CHANGE_USERNAME, request.http_request.tenant.default_user_change_username\n\
-      ):\n    if prompt_data.get(\"username\", request.user.username) != request.user.username:\n\
-      \        ak_message(\"Not allowed to change username.\")\n        return False\n\
-      \nreturn True"
+      ):\n    if prompt_data.get(\"name\", request.user.name) != request.user.name:\n\
+      \        ak_message(\"Not allowed to change name.\")\n        return False\n\
+      \nif not request.user.group_attributes(request.http_request).get(\n    USER_ATTRIBUTE_CHANGE_USERNAME,\
+      \ request.http_request.tenant.default_user_change_username\n):\n    if prompt_data.get(\"\
+      username\", request.user.username) != request.user.username:\n        ak_message(\"\
+      Not allowed to change username.\")\n        return False\n\nreturn True"
     name: ietf-user-settings-validation
   conditions: []
   identifiers:
@@ -146,11 +111,9 @@ entries:
   state: present
 - attrs:
     fields:
-    - 5c46e8bf-74f3-4266-9f53-0fae5e384f86
     - 6d1bba97-eb84-42cf-a50a-fbfc68fccddc
-    - fa8953a3-2ced-4734-bfca-6a954fe97aa2
-    - e4771802-933d-4c46-9512-31042cfbcd5c
     - 25e3e4a4-aa8d-4d31-bf41-5efd73620f77
+    - 4fb237b6-1a71-4056-aebb-25028be74077
     validation_policies:
     - f11a90ac-7fb6-4990-8985-d9b19e8e1700
   conditions: []
@@ -191,5 +154,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-07-21 05:59:00.469434+00:00
+  name: authentik Export - 2026-08-07 19:58:58.367530+00:00
 version: 1
