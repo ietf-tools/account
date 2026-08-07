@@ -50,11 +50,9 @@ async function onSubmit() {
     await complete({ token, email: chosen.value, password: password.value })
     state.value = 'done'
     // The account is changed, but this browser has no authentik session — recovery
-    // starts from "I can't sign in". Try to resolve one anyway (someone may still be
-    // signed in elsewhere in this browser); the profile page is guarded, so an
-    // unauthenticated visit lands on sign-in, where the new address and password work.
+    // starts from "I can't sign in".
     await auth.fetchSession().catch(() => {})
-    setTimeout(() => router.push('/account/profile'), 1200)
+    setTimeout(() => router.push('/'), 2000)
   } catch (e) {
     formError.value =
       e?.data?.error || e?.data?.message || e?.message || 'We could not recover this account.'
@@ -112,7 +110,7 @@ onMounted(async () => {
 
     <div v-else-if="state === 'done'" class="mt-4 text-sm text-slate-600">
       Your account now uses <span class="font-medium text-slate-900">{{ chosen }}</span> and your
-      new password — redirecting…
+      new password — redirecting to the login page…
     </div>
 
     <template v-else>
@@ -139,7 +137,7 @@ onMounted(async () => {
             </label>
           </div>
           <p class="mt-1 text-xs text-slate-500">
-            This becomes your email address and your sign-in username.
+            This becomes your account new primary email address for sign-in.
             <span v-if="account">
               The account's current address ({{ account }}) will no longer work.
             </span>
