@@ -192,9 +192,7 @@ async function launchConfetti(event) {
               </NuxtLink>
             </nav>
 
-            <!-- `mt-auto` keeps this block pinned to the bottom of the sidebar
-                 column (it used to ride on the version line below it). -->
-            <div class="mt-auto space-y-2 border-t border-slate-200 p-3">
+            <div class="space-y-2 border-t border-slate-200 p-3">
               <!-- Superusers only. Plain anchor (not NuxtLink) so it leaves the SPA
                    to authentik's admin UI at the domain root rather than resolving
                    under the /app/ base. -->
