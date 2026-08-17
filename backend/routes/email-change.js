@@ -13,6 +13,7 @@ import {
   PURPOSE_EMAIL_CHANGE
 } from '../lib/token.js'
 import { sendEmailChangeVerification } from '../lib/mailer.js'
+import { blockedEmailDomain } from '../lib/email-domains.js'
 import { config } from '../lib/config.js'
 
 /**
@@ -74,6 +75,16 @@ export default async function emailChangeRoutes(app) {
     if (email === String(user.email ?? '').toLowerCase()) {
       return reply.badRequest('That is already your email address.')
     }
+    // The same domains sign-up refuses (see lib/email-domains.js). Without this the
+    // block on registration is a formality: sign up with a personal address, then
+    // move the account onto a blocked one from here.
+    const blocked = blockedEmailDomain(email)
+    if (blocked) {
+      return reply.badRequest(
+        `Addresses at ${blocked} cannot be used for an IETF account. ` +
+          'Please use a personal address you will keep long-term.'
+      )
+    }
 
     try {
       const existing = await findUserByEmail(email)
@@ -133,6 +144,16 @@ export default async function emailChangeRoutes(app) {
       // of an old link can't re-trigger or revert a change.
       if (String(full.attributes?.pending_email ?? '').toLowerCase() !== claims.email.toLowerCase()) {
         return reply.badRequest('This confirmation link has already been used or is no longer valid.')
+      }
+      // Re-read the blocked-domain list rather than trusting that the request step
+      // passed it: BLOCKED_EMAIL_DOMAINS can gain a domain (and the backend restart
+      // that applies it can happen) while a link sits unopened in an inbox.
+      const blocked = blockedEmailDomain(claims.email)
+      if (blocked) {
+        return reply.badRequest(
+          `Addresses at ${blocked} cannot be used for an IETF account. ` +
+            'Please use a personal address you will keep long-term.'
+        )
       }
       // Re-check the address didn't get taken between request and confirm.
       const existing = await findUserByEmail(claims.email)

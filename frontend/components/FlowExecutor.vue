@@ -421,6 +421,10 @@ function clearPromptError(key) {
   delete promptErrors[key]
 }
 
+// Domains no account may be attached to (BLOCKED_EMAIL_DOMAINS). Read once here
+// rather than per-keystroke; it's baked into the bundle at build time.
+const blockedEmailDomains = useRuntimeConfig().public.blockedEmailDomains ?? []
+
 // A required checkbox has to be TICKED, not merely answered: authentik builds every
 // checkbox prompt as a BooleanField with required=False, so `false` is a perfectly
 // valid response to it and only a validation policy on the stage rejects one. That
@@ -433,6 +437,19 @@ function validatePrompt() {
     if (field.type === 'checkbox' && field.required && !model[field.field_key]) {
       promptErrors[field.field_key] = 'Please tick this box to continue.'
       ok = false
+    }
+    // The sign-up form's email field — the only email prompt either enrollment flow
+    // carries (user settings lost its email field to the verified change flow). Same
+    // deal as the checkbox above: the gate is a validation policy on the stage in
+    // authentik (authentik/ietf-flows/ietf-blocked-email-domains.yaml), which is what
+    // catches a social sign-up too since that flow has no field to type into; this
+    // just says so inline rather than after a round-trip.
+    if (field.type === 'email' || field.field_key === 'email') {
+      const blocked = blockedEmailDomain(model[field.field_key], blockedEmailDomains)
+      if (blocked) {
+        promptErrors[field.field_key] = blockedEmailDomainMessage(blocked)
+        ok = false
+      }
     }
   }
   return ok
@@ -880,6 +897,7 @@ function signOutEntirely() {
               :placeholder="field.placeholder"
               :required="field.required"
               class="field-input"
+              @input="clearPromptError(field.field_key)"
             />
             <PasswordStrength
               v-if="field.field_key === strengthKey"

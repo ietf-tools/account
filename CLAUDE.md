@@ -162,6 +162,25 @@ fresh cookie jar per `begin`.)
   ([stores/auth.js](frontend/stores/auth.js)); there's no app-side login session, so a backend restart
   does *not* log anyone out. The backend's in-memory session (cookie `sessionId`) now holds **only**
   the legacy migration's two-step handoff; multi-instance would still want a shared store there.
+- **Blocked email domains live in three places, and only two of them are gates.**
+  `BLOCKED_EMAIL_DOMAINS` (default `ietf.org`; hostnames matched **exactly** — subdomains are not
+  implied, since `staff.ietf.org` and friends are real personal mailboxes) is read by
+  [backend/lib/config.js](backend/lib/config.js) *and* [nuxt.config.ts](nuxt.config.ts), so one env var
+  drives the backend refusals (recovery addresses, verified email change — matching in
+  [backend/lib/email-domains.js](backend/lib/email-domains.js)) and the SPA's inline warning
+  ([frontend/utils/emailDomains.js](frontend/utils/emailDomains.js), a hand-kept twin of that matcher).
+  **Registration is gated by neither** — the browser drives the enrollment flows straight against
+  authentik, so that gate is an authentik policy with its own copy of the list
+  ([ietf-blocked-email-domains.yaml](authentik/ietf-flows/ietf-blocked-email-domains.yaml)); adding a
+  domain means editing the `.env` *and* that policy. The policy is bound two ways because the two
+  flows differ: a **validation policy** on manual enrollment's prompt stage (the user typed the
+  address and can fix it — the message lands in `non_field_errors`), and a **Deny stage** on social
+  enrollment (the address came from the provider, so there's nothing to correct). Its expression
+  answers *"is this allowed?"*, not *"is this blocked?"*, because a prompt stage's
+  `validation_policies` are run by a `ListPolicyEngine` that builds its own transient bindings —
+  `negate` on a PolicyBinding is ignored there. The deny stage's binding carries `negate: true` to
+  read it the other way. Email *change* is blocked too, or the registration block is a formality
+  (sign up with a personal address, then move the account over).
 - **The user-settings email guard is fixed in authentik, not here — the client cannot work around it.**
   The `ietf-user-settings` prompt stage has authentik's stock validation policy attached, whose email
   branch is `if prompt_data.get("email") != request.user.email: reject("Not allowed to change email

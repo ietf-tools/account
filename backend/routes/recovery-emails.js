@@ -18,6 +18,7 @@ import {
   storedRecoveryEmails,
   hasRecoveryEmail as hasAddress
 } from '../lib/recovery-emails.js'
+import { blockedEmailDomain } from '../lib/email-domains.js'
 import { config } from '../lib/config.js'
 
 /**
@@ -118,6 +119,16 @@ export default async function recoveryEmailsRoutes(app) {
     if (email === String(user.email ?? '').toLowerCase()) {
       return reply.badRequest('That is already your primary email address.')
     }
+    // A recovery address is what gets someone back into an account, so it has to be
+    // a mailbox that outlives their association with an organisation — which is
+    // exactly what a blocked domain isn't (see lib/email-domains.js).
+    const blocked = blockedEmailDomain(email)
+    if (blocked) {
+      return reply.badRequest(
+        `Addresses at ${blocked} cannot be used as a recovery email address. ` +
+          'Please use a personal address you will keep long-term.'
+      )
+    }
 
     try {
       // Recovery addresses are how an account is identified when its owner has lost
@@ -202,6 +213,16 @@ export default async function recoveryEmailsRoutes(app) {
       // pass before the link is opened, and the account can have moved underneath
       // it. These are re-read, never taken from the token.
       //
+      // Re-read the blocked-domain list rather than trusting that the request step
+      // passed it: BLOCKED_EMAIL_DOMAINS can gain a domain (and the backend restart
+      // that applies it can happen) while a link sits unopened in an inbox.
+      const blocked = blockedEmailDomain(claims.email)
+      if (blocked) {
+        return reply.badRequest(
+          `Addresses at ${blocked} cannot be used as a recovery email address. ` +
+            'Please use a personal address you will keep long-term.'
+        )
+      }
       // Re-check the address didn't get claimed by another account meanwhile.
       const existing = await findUserByEmail(claims.email)
       if (existing && String(existing.pk) !== String(claims.pk)) {

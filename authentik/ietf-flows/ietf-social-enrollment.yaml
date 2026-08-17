@@ -53,6 +53,31 @@ entries:
   state: present
 - attrs:
     execution_logging: false
+    expression: "# Keep in step with BLOCKED_EMAIL_DOMAINS in the app's .env \u2014\
+      \ see this\n# blueprint's header. Bare hostnames, lower-case, no leading \"\
+      @\". Matched\n# exactly: subdomains are NOT implied, list them if you want them\
+      \ blocked.\nBLOCKED_EMAIL_DOMAINS = [\"ietf.org\"]\n\nprompt_data = request.context.get(\"\
+      prompt_data\") or {}\nemail = (prompt_data.get(\"email\") or \"\").strip().lower()\n\
+      if not email:\n    # Social enrollment seeds prompt_data from the source before\
+      \ the flow\n    # runs; should some source path ever not, fall back to the pending\
+      \ user\n    # the source flow manager built.\n    pending = request.context.get(\"\
+      pending_user\")\n    email = (getattr(pending, \"email\", \"\") or \"\").strip().lower()\n\
+      \n# No address to judge \u2014 not this policy's call to make. The sign-up form\n\
+      # requires one, and a source that supplies none can't be supplying a blocked\n\
+      # one either.\nhost = email.rpartition(\"@\")[2].rstrip(\".\")\nif not host:\n\
+      \    return True\n\nif host in BLOCKED_EMAIL_DOMAINS:\n    ak_message(\n   \
+      \     f\"Addresses at {host} cannot be used for an IETF account. \"\n      \
+      \  \"Please use a personal address you will keep long-term.\"\n    )\n    return\
+      \ False\nreturn True"
+    name: ietf-enrollment-allow-email-domain
+  conditions: []
+  identifiers:
+    pk: d86169b1-4489-4d02-a64d-f7856359776c
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
     expression: 'email = request.context["prompt_data"]["email"]
 
       request.context["prompt_data"]["username"] = email
@@ -120,6 +145,16 @@ entries:
   permissions: []
   state: present
 - attrs:
+    deny_message: This email address cannot be used for an IETF account. Please sign
+      up with a personal address you will keep long-term.
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-deny-blocked-domain
+    pk: 60655f5c-4adf-4633-a2a6-c7af9e6afd1a
+  model: authentik_stages_deny.denystage
+  permissions: []
+  state: present
+- attrs:
     create_users_as_inactive: false
     create_users_group: null
     user_creation_mode: always_create
@@ -159,6 +194,20 @@ entries:
     name: ietf-enrollment-login
     pk: 6b6db9d9-40e8-417b-a51a-6554e1ea7bf1
   model: authentik_stages_user_login.userloginstage
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 3a0492ff-bb1d-4369-ba7a-375a835777fe
+    stage: 60655f5c-4adf-4633-a2a6-c7af9e6afd1a
+    target: cd483331-30bd-400f-afb7-1a426a33deb6
+  model: authentik_flows.flowstagebinding
   permissions: []
   state: present
 - attrs:
@@ -215,6 +264,22 @@ entries:
     stage: 6b6db9d9-40e8-417b-a51a-6554e1ea7bf1
     target: cd483331-30bd-400f-afb7-1a426a33deb6
   model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: true
+    group: null
+    negate: true
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 2ccc6bdf-a128-43ca-8446-9e913d89ac51
+    policy: d86169b1-4489-4d02-a64d-f7856359776c
+    target: 3a0492ff-bb1d-4369-ba7a-375a835777fe
+  model: authentik_policies.policybinding
   permissions: []
   state: present
 - attrs:
@@ -284,5 +349,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-08-07 20:02:10.464031+00:00
+  name: authentik Export - 2026-08-17 05:03:42.017948+00:00
 version: 1

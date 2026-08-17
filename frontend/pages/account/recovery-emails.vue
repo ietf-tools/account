@@ -49,11 +49,21 @@ function cancelAddForm() {
   addError.value = null
 }
 
+// Domains no address on an account may sit under (BLOCKED_EMAIL_DOMAINS). The
+// backend refuses these on both steps — this only saves the round-trip.
+const blockedEmailDomains = useRuntimeConfig().public.blockedEmailDomains ?? []
+
 async function submitAdd() {
   addError.value = null
+  const address = newEmail.value.trim()
+  const blocked = blockedEmailDomain(address, blockedEmailDomains)
+  if (blocked) {
+    addError.value = blockedEmailDomainMessage(blocked, 'as a recovery email address')
+    return
+  }
   sending.value = true
   try {
-    sentTo.value = await requestAdd(newEmail.value.trim())
+    sentTo.value = await requestAdd(address)
     showAddForm.value = false
   } catch (e) {
     addError.value =

@@ -38,11 +38,22 @@ function cancelEmailForm() {
   emailError.value = null
 }
 
+// Domains no account may be attached to (BLOCKED_EMAIL_DOMAINS) — the same ones
+// sign-up refuses, so this can't be the way around that block. The backend refuses
+// them on both steps; this only saves the round-trip.
+const blockedEmailDomains = useRuntimeConfig().public.blockedEmailDomains ?? []
+
 async function submitEmailChange() {
   emailError.value = null
+  const address = newEmail.value.trim()
+  const blocked = blockedEmailDomain(address, blockedEmailDomains)
+  if (blocked) {
+    emailError.value = blockedEmailDomainMessage(blocked)
+    return
+  }
   sending.value = true
   try {
-    const res = await api('/email-change', { method: 'POST', body: { email: newEmail.value.trim() } })
+    const res = await api('/email-change', { method: 'POST', body: { email: address } })
     sentTo.value = res.email
     showEmailForm.value = false
   } catch (e) {

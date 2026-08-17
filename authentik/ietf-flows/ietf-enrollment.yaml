@@ -18,6 +18,28 @@ entries:
   permissions: []
   state: present
 - attrs:
+    field_key: note_well_agreed
+    initial_value: ''
+    initial_value_expression: false
+    label: I agree to follow IETF processes and policies, a reminder of which is given
+      in the <a href="https://www.ietf.org/about/note-well/" target="_blank">IETF
+      Note Well</a>, and in doing so I consent to the use of my information in accordance
+      with the <a href="https://www.ietf.org/privacy-statement/" target="_blank">IETF/IRTF/IAB
+      Privacy Statement</a>.
+    name: ietf-enrollment-field-note-well
+    order: 0
+    placeholder: ''
+    placeholder_expression: false
+    required: false
+    sub_text: ''
+    type: checkbox
+  conditions: []
+  identifiers:
+    pk: b44ed6bf-0da8-4641-b17c-00829a508889
+  model: authentik_stages_prompt.prompt
+  permissions: []
+  state: present
+- attrs:
     field_key: email
     initial_value: "try:\n    return user.email\nexcept:\n    return ''"
     initial_value_expression: true
@@ -90,28 +112,6 @@ entries:
   permissions: []
   state: present
 - attrs:
-    field_key: note_well_agreed
-    initial_value: ''
-    initial_value_expression: false
-    label: I agree to follow IETF processes and policies, a reminder of which is given
-      in the <a href="https://www.ietf.org/about/note-well/" target="_blank">IETF
-      Note Well</a>, and in doing so I consent to the use of my information in accordance
-      with the <a href="https://www.ietf.org/privacy-statement/" target="_blank">IETF/IRTF/IAB
-      Privacy Statement</a>.
-    name: ietf-enrollment-field-note-well
-    order: 0
-    placeholder: ''
-    placeholder_expression: false
-    required: false
-    sub_text: ''
-    type: checkbox
-  conditions: []
-  identifiers:
-    pk: b44ed6bf-0da8-4641-b17c-00829a508889
-  model: authentik_stages_prompt.prompt
-  permissions: []
-  state: present
-- attrs:
     execution_logging: false
     expression: "if request.context[\"prompt_data\"].get(\"note_well_agreed\", False):\n\
       \    return True\nak_message(\"You must agree to the IETF Note Well and Privacy\
@@ -120,6 +120,31 @@ entries:
   conditions: []
   identifiers:
     pk: f85ba29d-2f0e-49ef-8bdf-234f1c739db3
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: "# Keep in step with BLOCKED_EMAIL_DOMAINS in the app's .env \u2014\
+      \ see this\n# blueprint's header. Bare hostnames, lower-case, no leading \"\
+      @\". Matched\n# exactly: subdomains are NOT implied, list them if you want them\
+      \ blocked.\nBLOCKED_EMAIL_DOMAINS = [\"ietf.org\"]\n\nprompt_data = request.context.get(\"\
+      prompt_data\") or {}\nemail = (prompt_data.get(\"email\") or \"\").strip().lower()\n\
+      if not email:\n    # Social enrollment seeds prompt_data from the source before\
+      \ the flow\n    # runs; should some source path ever not, fall back to the pending\
+      \ user\n    # the source flow manager built.\n    pending = request.context.get(\"\
+      pending_user\")\n    email = (getattr(pending, \"email\", \"\") or \"\").strip().lower()\n\
+      \n# No address to judge \u2014 not this policy's call to make. The sign-up form\n\
+      # requires one, and a source that supplies none can't be supplying a blocked\n\
+      # one either.\nhost = email.rpartition(\"@\")[2].rstrip(\".\")\nif not host:\n\
+      \    return True\n\nif host in BLOCKED_EMAIL_DOMAINS:\n    ak_message(\n   \
+      \     f\"Addresses at {host} cannot be used for an IETF account. \"\n      \
+      \  \"Please use a personal address you will keep long-term.\"\n    )\n    return\
+      \ False\nreturn True"
+    name: ietf-enrollment-allow-email-domain
+  conditions: []
+  identifiers:
+    pk: d86169b1-4489-4d02-a64d-f7856359776c
   model: authentik_policies_expression.expressionpolicy
   permissions: []
   state: present
@@ -217,20 +242,6 @@ entries:
   permissions: []
   state: present
 - attrs:
-    fields:
-    - a73b83fa-698d-4e24-b50e-5099eb1b6219
-    - 9bc921cc-24a7-49cf-b3bc-2d775f180b85
-    - ab907512-cd6d-47aa-a569-554f30824324
-    - 04aa03d3-03b4-4d71-8429-d8190a72f059
-    validation_policies: []
-  conditions: []
-  identifiers:
-    name: ietf-enrollment-prompt-newuser
-    pk: 7eb201d2-8cc2-49e0-addc-fdb4e3148ba0
-  model: authentik_stages_prompt.promptstage
-  permissions: []
-  state: present
-- attrs:
     create_users_as_inactive: true
     create_users_group: null
     user_creation_mode: always_create
@@ -252,6 +263,21 @@ entries:
   identifiers:
     name: ietf-enrollment-prompt-note-well
     pk: ccafa990-a5ce-4b1f-8d15-b3b8b7c77dbe
+  model: authentik_stages_prompt.promptstage
+  permissions: []
+  state: present
+- attrs:
+    fields:
+    - a73b83fa-698d-4e24-b50e-5099eb1b6219
+    - 9bc921cc-24a7-49cf-b3bc-2d775f180b85
+    - ab907512-cd6d-47aa-a569-554f30824324
+    - 04aa03d3-03b4-4d71-8429-d8190a72f059
+    validation_policies:
+    - d86169b1-4489-4d02-a64d-f7856359776c
+  conditions: []
+  identifiers:
+    name: ietf-enrollment-prompt-newuser
+    pk: 7eb201d2-8cc2-49e0-addc-fdb4e3148ba0
   model: authentik_stages_prompt.promptstage
   permissions: []
   state: present
@@ -390,5 +416,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-08-07 20:01:54.018943+00:00
+  name: authentik Export - 2026-08-17 05:04:15.547769+00:00
 version: 1

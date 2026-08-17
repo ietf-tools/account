@@ -160,5 +160,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-08-07 20:01:36.960820+00:00
+  name: authentik Export - 2026-08-17 05:06:21.112708+00:00
 version: 1

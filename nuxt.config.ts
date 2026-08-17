@@ -84,6 +84,17 @@ const flows = {
   staticSetup: process.env.AUTHENTIK_FLOW_STATIC_SETUP ?? 'default-authenticator-static-setup'
 }
 
+// Email domains that may not be attached to an account (sign-up, recovery
+// addresses, email change). Same env var the backend reads — see
+// backend/lib/config.js for the why and for the parse this mirrors — so one
+// setting drives both. What ships to the browser is only the inline check that
+// tells a user before they submit; the gates are authentik's enrollment policy
+// (registration, which never touches our backend) and the backend routes.
+const blockedEmailDomains = (process.env.BLOCKED_EMAIL_DOMAINS ?? 'ietf.org')
+  .split(/[,\s]+/)
+  .map((entry) => entry.trim().toLowerCase().replace(/^@+/, '').replace(/\.+$/, ''))
+  .filter(Boolean)
+
 // Dev only: base URL of the remote authentik to proxy /api/v3 to. In production
 // this is unused (same-origin). Reuses AUTHENTIK_URL from the backend's .env.
 const devAuthentikUrl = (process.env.AUTHENTIK_URL ?? '').replace(/\/+$/, '')
@@ -98,6 +109,7 @@ export default defineNuxtConfig({
       apiUrl,
       authentikApiUrl,
       flows,
+      blockedEmailDomains,
       appVersion,
       buildId
     }

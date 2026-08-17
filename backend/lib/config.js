@@ -16,6 +16,17 @@ function normalisePrefix(value) {
   return trimmed ? `/${trimmed}` : ''
 }
 
+// Split a comma/whitespace separated domain list into bare lower-cased hostnames,
+// tolerating the "@ietf.org" and "ietf.org." spellings people naturally write.
+// Kept byte-for-byte in step with the same parse in nuxt.config.ts, which reads
+// the same env var (see blockedEmailDomains below).
+function parseDomainList(value) {
+  return value
+    .split(/[,\s]+/)
+    .map((entry) => entry.trim().toLowerCase().replace(/^@+/, '').replace(/\.+$/, ''))
+    .filter(Boolean)
+}
+
 export const config = {
   port: Number(process.env.BACKEND_PORT ?? 4000),
   isProd: process.env.NODE_ENV === 'production',
@@ -26,6 +37,19 @@ export const config = {
   // the backend serves at /app/api and the edge forwards without stripping the
   // prefix. Default "/api" keeps local dev (and the Nuxt dev proxy) unchanged.
   apiPrefix: normalisePrefix(process.env.API_PREFIX ?? '/api'),
+
+  // Email domains that may not be attached to an account: sign-up, social sign-up,
+  // recovery addresses and the verified email change all refuse them (see
+  // lib/email-domains.js for the matching rule). @ietf.org is blocked because those
+  // addresses are institutional aliases, not mailboxes a person keeps — an account
+  // reachable only through one is unrecoverable the moment its owner moves on.
+  //
+  // nuxt.config.ts reads this SAME env var, so one setting drives the backend gate
+  // and the SPA's inline check. Registration is neither one's gate — the browser
+  // drives the enrollment flow straight against authentik, so that gate is a policy
+  // over there, holding its own copy of the list (see
+  // authentik/ietf-flows/ietf-blocked-email-domains.yaml — keep the three in sync).
+  blockedEmailDomains: parseDomainList(process.env.BLOCKED_EMAIL_DOMAINS ?? 'ietf.org'),
 
   session: {
     secret: required('SESSION_SECRET'),
