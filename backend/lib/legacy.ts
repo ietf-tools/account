@@ -1,7 +1,7 @@
 import { config } from './config.ts'
 
 /**
- * Client for the legacy Django system.
+ * Client for the legacy Datatracker system.
  *
  * This is the piece of business logic that MUST live in the backend: verifying
  * a user's credentials against the old system before we recreate their account
@@ -91,7 +91,7 @@ export async function verifyLegacyCredentials(
     // Anything else worth carrying over lands in authentik user attributes.
     attributes: {
       legacy_id: profile.id ?? profile.pk ?? null,
-      migrated_from: 'django',
+      migrated_from: 'datatracker',
       ...profile.attributes
     }
   }

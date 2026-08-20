@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { statSync } from 'node:fs'
 import { dirname, join, sep } from 'node:path'
 
 import Fastify from 'fastify'
@@ -9,7 +10,6 @@ import sensible from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
 
 import { config } from './lib/config.ts'
-import { errorMessage } from './lib/errors.ts'
 import migrationRoutes from './routes/migration.ts'
 import avatarRoutes from './routes/avatar.ts'
 import portraitRoutes from './routes/portrait.ts'
@@ -69,10 +69,20 @@ await app.register(recoveryEmailsRoutes, { prefix: `${config.apiPrefix}/recovery
 // Unauthenticated by design — the signed link is the authorisation. See the route.
 await app.register(accountRecoveryRoutes, { prefix: `${config.apiPrefix}/account-recovery` })
 
-// In production the built SPA (nuxt generate -> .output/public) is served by
-// this same server, so the browser only ever talks to one origin.
+// In production the built SPA (nuxt generate -> .output/public) *may* be served by
+// this same server, so the browser only ever talks to one origin. It is optional:
+// the account.ietf.org deployment ships the SPA to Cloudflare Pages instead and
+// builds a backend-only image (docker/release.Dockerfile copies just backend/), so
+// this directory legitimately does not exist there.
+//
+// Decide that up front rather than by registering and catching a failure —
+// @fastify/static does NOT reject a missing root, it logs its own
+// `"root" path "…" must exist` warning and registers anyway, which left the SPA
+// fallback below installed but unable to send anything.
 const spaDir = join(__dirname, '..', '.output', 'public')
-try {
+const hasSpa = statSync(spaDir, { throwIfNoEntry: false })?.isDirectory() ?? false
+
+if (hasSpa) {
   await app.register(fastifyStatic, {
     root: spaDir,
     wildcard: false,
@@ -96,20 +106,21 @@ try {
       }
     }
   })
-  // SPA fallback: anything not matched above returns index.html. sendFile goes
-  // through the same static instance, so index.html gets the no-cache header too.
-  app.setNotFoundHandler((request, reply) => {
-    if (request.url.startsWith(config.apiPrefix || '/api')) {
-      reply.code(404).send({ error: 'Not found' })
-    } else {
-      reply.sendFile('index.html')
-    }
-  })
-} catch (err) {
-  app.log.warn(
-    `Static SPA dir not available (${spaDir}); run "npm run build" for production. ${errorMessage(err)}`
-  )
+} else {
+  app.log.info(`No SPA build at ${spaDir}; serving the API only.`)
 }
+
+// SPA fallback: anything not matched above returns index.html. sendFile goes
+// through the same static instance, so index.html gets the no-cache header too.
+// Without a build to fall back to there is nothing to send, so every unmatched
+// route answers like an API one.
+app.setNotFoundHandler((request, reply) => {
+  if (!hasSpa || request.url.startsWith(config.apiPrefix || '/api')) {
+    reply.code(404).send({ error: 'Not found' })
+  } else {
+    reply.sendFile('index.html')
+  }
+})
 
 try {
   await app.listen({ port: config.port, host: '0.0.0.0' })
