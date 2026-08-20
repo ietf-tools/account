@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 
-import { resolveSessionUser, clientFromRequest, AuthentikError } from './authentik.js'
+import type { FastifyReply, FastifyRequest } from 'fastify'
+
+import { resolveSessionUser, clientFromRequest, AuthentikError } from './authentik.ts'
+import type { AuthentikUser } from './authentik.ts'
 
 /**
  * Shared helpers for the image-upload routes (avatar + portrait). They differ in
@@ -15,7 +18,7 @@ export const ALLOWED_INPUT = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 // Pull the mime type and raw bytes out of a `data:<mime>;base64,<data>` URI.
 // Returns null if it isn't a base64 data URI.
-export function parseDataUri(value) {
+export function parseDataUri(value: unknown): { mime: string; buffer: Buffer } | null {
   const match = typeof value === 'string' && value.match(/^data:([^;,]+);base64,(.+)$/s)
   if (!match) {
     return null
@@ -25,15 +28,18 @@ export function parseDataUri(value) {
 
 // Short content hash used in object keys so each distinct image gets a unique,
 // immutably-cacheable URL.
-export function shortHash(buffer) {
+export function shortHash(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex').slice(0, 16)
 }
 
 // Resolve the acting user from their authentik session cookie, or reply 401.
 // We never trust a pk from the browser — only the one authentik derives from its
 // cookie. Returns the authentik user object on success, or null (reply sent).
-export async function requireUser(request, reply) {
-  let user = null
+export async function requireUser(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<AuthentikUser | null> {
+  let user: AuthentikUser | null = null
   try {
     user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
   } catch (err) {

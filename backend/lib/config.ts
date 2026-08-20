@@ -1,6 +1,6 @@
 import 'dotenv/config'
 
-function required(name) {
+function required(name: string): string {
   const value = process.env[name]
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`)
@@ -11,7 +11,7 @@ function required(name) {
 // Normalise a URL path prefix to a single leading slash and no trailing slash
 // ("/app/api/" -> "/app/api", "api" -> "/api"). An empty/"/" value yields "",
 // i.e. routes mount at the root.
-function normalisePrefix(value) {
+function normalisePrefix(value: string): string {
   const trimmed = value.trim().replace(/^\/+|\/+$/g, '')
   return trimmed ? `/${trimmed}` : ''
 }
@@ -20,7 +20,7 @@ function normalisePrefix(value) {
 // tolerating the "@ietf.org" and "ietf.org." spellings people naturally write.
 // Kept byte-for-byte in step with the same parse in nuxt.config.ts, which reads
 // the same env var (see blockedEmailDomains below).
-function parseDomainList(value) {
+function parseDomainList(value: string): string[] {
   return value
     .split(/[,\s]+/)
     .map((entry) => entry.trim().toLowerCase().replace(/^@+/, '').replace(/\.+$/, ''))
@@ -40,7 +40,7 @@ export const config = {
 
   // Email domains that may not be attached to an account: sign-up, social sign-up,
   // recovery addresses and the verified email change all refuse them (see
-  // lib/email-domains.js for the matching rule). @ietf.org is blocked because those
+  // lib/email-domains.ts for the matching rule). @ietf.org is blocked because those
   // addresses are institutional aliases, not mailboxes a person keeps — an account
   // reachable only through one is unrecoverable the moment its owner moves on.
   //
@@ -68,7 +68,7 @@ export const config = {
   },
 
   // GitHub REST API, used only to resolve a linked GitHub account's numeric id to
-  // its username (Connected Services → refresh; see routes/github.js). Optional:
+  // its username (Connected Services → refresh; see routes/github.ts). Optional:
   // without a token the lookup still works but is rate limited to 60/hour for the
   // whole server. Any classic PAT with no scopes lifts that to 5000/hour.
   github: {

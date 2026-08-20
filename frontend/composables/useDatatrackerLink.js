@@ -3,7 +3,7 @@
 //
 // Goes through the app backend because the browser can't read user attributes at
 // all — /core/users/me/ omits `attributes`, so reading the flag needs the admin
-// token. See backend/routes/datatracker.js.
+// token. See backend/routes/datatracker.ts.
 
 export function useDatatrackerLink() {
   const api = useApi()

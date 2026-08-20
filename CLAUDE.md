@@ -23,16 +23,22 @@ Browser ──► Nuxt SPA (frontend/) ──► authentik API      (all auth fl
 ## Stack & layout
 
 - **Frontend:** Nuxt 4 SPA (`ssr: false`), Pinia, Tailwind. Source in `frontend/` (`srcDir`).
-- **Backend:** Fastify (ESM, Node 26+), in-memory session. Source in `backend/`.
-- Config: [nuxt.config.ts](nuxt.config.ts), [backend/lib/config.js](backend/lib/config.js) (env-driven).
+- **Backend:** Fastify (TypeScript, ESM, Node 26+), in-memory session. Source in `backend/`.
+  **Not compiled** — Node runs the `.ts` files directly (it strips the types), so relative imports
+  carry the real `.ts` extension and there is no build step or emitted output. `tsc` only
+  type-checks (`npm run typecheck:backend`); see [backend/tsconfig.json](backend/tsconfig.json).
+- Config: [nuxt.config.ts](nuxt.config.ts), [backend/lib/config.ts](backend/lib/config.ts) (env-driven).
 
 ```
 backend/
-  index.js            Fastify bootstrap: CORS, cookie, session, static SPA, route registration
-  lib/authentik.js    Admin client (service-account token) — used only by migration
-  lib/config.js       Env config (throws on missing SESSION_SECRET / AUTHENTIK_URL)
-  lib/legacy.js       Legacy Django client (migration only)
-  routes/migration.js Legacy → authentik account migration (the only auth-ish backend route)
+  index.ts            Fastify bootstrap: CORS, cookie, session, static SPA, route registration
+  tsconfig.json       Type-check only (noEmit) — see the note above
+  lib/authentik.ts    Admin client (service-account token) + the AuthentikUser shape
+  lib/config.ts       Env config (throws on missing SESSION_SECRET / AUTHENTIK_URL)
+  lib/attributes.ts   Narrowing the free-form JSON in user `attributes` (it's all `unknown`)
+  lib/errors.ts       errorMessage(): reading a message off a caught `unknown`
+  lib/legacy.ts       Legacy Django client (migration only)
+  routes/migration.ts Legacy → authentik account migration (the only auth-ish backend route)
 frontend/
   components/FlowExecutor.vue  Dynamic authentik challenge renderer (the core UI)
   composables/useAuthentik.js  $fetch pointed at authentik /api/v3 (credentials + CSRF header)
@@ -121,8 +127,8 @@ fresh cookie jar per `begin`.)
 - **New-account defaults are stamped by a policy on the enrollment *user write* binding** —
   [ietf-enrollment-account-defaults.yaml](authentik/ietf-flows/ietf-enrollment-account-defaults.yaml)
   seeds `attributes.recovery_emails = []` and `attributes.avatar` = the Gravatar URL for the signed-up
-  address (same MD5 recipe as [backend/lib/gravatar.js](backend/lib/gravatar.js), because
-  `attributes.avatar` is *always* a URL — see [backend/routes/avatar.js](backend/routes/avatar.js)).
+  address (same MD5 recipe as [backend/lib/gravatar.ts](backend/lib/gravatar.ts), because
+  `attributes.avatar` is *always* a URL — see [backend/routes/avatar.ts](backend/routes/avatar.ts)).
   Same `attributes.…`-into-`prompt_data` mechanism as the note-well recorder above; like it, the
   policy must return `True` unconditionally, or the write stage is skipped and no account is created.
 - **"Stay signed in" (`ak-stage-user-login`) is coupled to server config.** The user login stage runs
@@ -165,9 +171,9 @@ fresh cookie jar per `begin`.)
 - **Blocked email domains live in three places, and only two of them are gates.**
   `BLOCKED_EMAIL_DOMAINS` (default `ietf.org`; hostnames matched **exactly** — subdomains are not
   implied, since `staff.ietf.org` and friends are real personal mailboxes) is read by
-  [backend/lib/config.js](backend/lib/config.js) *and* [nuxt.config.ts](nuxt.config.ts), so one env var
+  [backend/lib/config.ts](backend/lib/config.ts) *and* [nuxt.config.ts](nuxt.config.ts), so one env var
   drives the backend refusals (recovery addresses, verified email change — matching in
-  [backend/lib/email-domains.js](backend/lib/email-domains.js)) and the SPA's inline warning
+  [backend/lib/email-domains.ts](backend/lib/email-domains.ts)) and the SPA's inline warning
   ([frontend/utils/emailDomains.js](frontend/utils/emailDomains.js), a hand-kept twin of that matcher).
   **Registration is gated by neither** — the browser drives the enrollment flows straight against
   authentik, so that gate is an authentik policy with its own copy of the list
@@ -194,7 +200,7 @@ fresh cookie jar per `begin`.)
   (or drop the email block, or re-add a hidden `email` field whose initial value is `request.user.email`).
 - **Per-user "disable GitHub sign-in" is enforced by an authentik policy, not by this app.**
   [connected.vue](frontend/pages/account/connected.vue) → `POST /github/login-disabled`
-  ([backend/routes/github.js](backend/routes/github.js)) only writes
+  ([backend/routes/github.ts](backend/routes/github.ts)) only writes
   `attributes.github.login_disabled` with the admin token; the flag does nothing until an expression
   policy on a **Deny stage** in the source authentication flow (`ietf-social-callback`, ordered before
   its user-login stage, `evaluate_on_plan: true`) reads it — the expression is in that route's header
@@ -219,12 +225,15 @@ fresh cookie jar per `begin`.)
 ## Commands
 
 ```bash
-npm run dev:backend      # Fastify on :4000 (node --watch)
+npm run dev:backend      # Fastify on :4000 (node --watch, runs the .ts sources directly)
 npm run dev:frontend     # Nuxt dev on :3000, proxies the API path → backend
 npm run build            # nuxt generate → .output/public (base /app/)
 npm start                # Fastify serves API + built SPA (same origin)
 npm run lint             # oxlint
+npm run typecheck:backend  # tsc -p backend (type-check only, no emit)
 ```
 
 **Verify a frontend change** with `npm run build:frontend` (used throughout this project as the quick
-compile check). Requires a local `.env` (copy `.env.sample`); config throws on missing required vars.
+compile check). **Verify a backend change** with `npm run typecheck:backend` — nothing else compiles
+the backend, so a type error only shows up here or at run time. Both require a local `.env` (copy
+`.env.sample`); config throws on missing required vars.

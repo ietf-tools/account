@@ -1,4 +1,4 @@
-import { config } from './config.js'
+import { config } from './config.ts'
 
 /**
  * Client for the legacy Django system.
@@ -18,10 +18,33 @@ import { config } from './config.js'
  *
  * Swap the body of these functions for a direct DB read, an LDAP bind, or
  * whatever the legacy system actually offers. The rest of the migration flow
- * (routes/migration.js) only depends on the shape returned here.
+ * (routes/migration.ts) only depends on the shape returned here.
  */
 
-function legacyEnabled() {
+/**
+ * The normalised legacy profile the migration flow works from — see the header
+ * for the legacy API's own (looser) response shape.
+ */
+export interface LegacyProfile {
+  username: string
+  emails: string[]
+  name: string
+  attributes: Record<string, unknown>
+}
+
+/** The legacy API's `/verify` response, as far as we read it. */
+interface LegacyVerifyResponse {
+  username: string
+  email?: string
+  emails?: string[]
+  name?: string
+  full_name?: string
+  id?: string | number
+  pk?: string | number
+  attributes?: Record<string, unknown>
+}
+
+function legacyEnabled(): boolean {
   return Boolean(config.legacy.apiUrl)
 }
 
@@ -29,7 +52,10 @@ function legacyEnabled() {
  * Verify legacy credentials. Returns the legacy profile on success, or `null`
  * if the credentials are wrong / the account does not exist.
  */
-export async function verifyLegacyCredentials(identifier, password) {
+export async function verifyLegacyCredentials(
+  identifier: string,
+  password: string
+): Promise<LegacyProfile | null> {
   if (!legacyEnabled()) {
     throw new LegacyError('Legacy migration is not configured (set LEGACY_API_URL)', 501)
   }
@@ -48,10 +74,16 @@ export async function verifyLegacyCredentials(identifier, password) {
     throw new LegacyError(`Legacy system error (HTTP ${response.status})`, 502)
   }
 
-  const profile = await response.json()
+  const profile = (await response.json()) as LegacyVerifyResponse
   // A Datatracker account can own multiple emails. Normalise to a de-duplicated
   // list, accepting either an `emails` array or a single `email`.
-  const emails = [...new Set((Array.isArray(profile.emails) ? profile.emails : [profile.email]).filter(Boolean))]
+  const emails = [
+    ...new Set(
+      (Array.isArray(profile.emails) ? profile.emails : [profile.email]).filter(
+        (email): email is string => Boolean(email)
+      )
+    )
+  ]
   return {
     username: profile.username,
     emails,
@@ -66,7 +98,9 @@ export async function verifyLegacyCredentials(identifier, password) {
 }
 
 export class LegacyError extends Error {
-  constructor(message, status = 502) {
+  status: number
+
+  constructor(message: string, status = 502) {
     super(message)
     this.name = 'LegacyError'
     this.status = status

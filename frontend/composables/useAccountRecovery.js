@@ -1,7 +1,7 @@
 // The unauthenticated account-recovery flow: prove control of a confirmed recovery
 // address, then adopt it as the account's primary email and set a new password.
 //
-// Entirely backend-driven (see backend/routes/account-recovery.js) — it changes a
+// Entirely backend-driven (see backend/routes/account-recovery.ts) — it changes a
 // user's email, username and password, none of which the browser can do, and it
 // runs with no session at all. The signed link mailed in step one is the only
 // authorisation.

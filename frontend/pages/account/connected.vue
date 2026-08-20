@@ -97,7 +97,7 @@ async function onRefreshGithub() {
 
 // Opt in or out of signing in with GitHub. The account stays linked either way —
 // only authentik's source authentication flow changes behaviour (it reads the flag
-// this writes; see backend/routes/github.js).
+// this writes; see backend/routes/github.ts).
 async function onSetGithubLogin(disabled) {
   actionError.value = null
   actionNotice.value = null

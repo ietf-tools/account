@@ -1,0 +1,30 @@
+{
+  // The backend is type-checked but never compiled: Node 26 runs the .ts files
+  // directly (it strips the types in memory), so there is no build step and no
+  // emitted output to keep in sync — see "start"/"dev:backend" in package.json.
+  //
+  // Two consequences are enforced below:
+  //   * "erasableSyntaxOnly" — Node only *erases* types, it never transforms.
+  //     Enums, namespaces, parameter properties and `import =` would all need
+  //     real codegen, so they're rejected here rather than at run time.
+  //   * relative imports carry the real ".ts" extension (Node resolves the file
+  //     on disk, so a ".js" specifier would not exist) — hence
+  //     "allowImportingTsExtensions", which in turn requires "noEmit".
+  "compilerOptions": {
+    "target": "esnext",
+    "lib": ["esnext"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["**/*.ts"]
+}

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
-import { config } from './config.js'
+import { config } from './config.ts'
 
 /**
  * Stateless, signed capability tokens for the backend's email-verification flows
@@ -28,20 +28,54 @@ export const PURPOSE_RECOVERY_EMAIL = 'recovery-email'
 // Strictly more powerful than the other two: holding a valid one of these lets the
 // bearer take the account over (new primary address + new password). Minted only
 // for an address already confirmed on the account, and given a shorter life — see
-// routes/account-recovery.js.
+// routes/account-recovery.ts.
 export const PURPOSE_ACCOUNT_RECOVERY = 'account-recovery'
 
-function b64url(buf) {
+/**
+ * Which flow a token was minted for. Signed into the payload and checked on
+ * verify, so a link mailed for one flow cannot be replayed against another's
+ * endpoint — see the header.
+ */
+export type TokenPurpose =
+  | typeof PURPOSE_EMAIL_CHANGE
+  | typeof PURPOSE_RECOVERY_EMAIL
+  | typeof PURPOSE_ACCOUNT_RECOVERY
+
+/** The signed payload, as it is written and read back. */
+interface TokenPayload {
+  purpose: TokenPurpose
+  pk: string
+  email: string
+  exp: number
+}
+
+/** What a verified token proves: which account, and which address. */
+export interface TokenClaims {
+  pk: string
+  email: string
+}
+
+function b64url(buf: string): string {
   return Buffer.from(buf).toString('base64url')
 }
 
-function sign(payloadB64) {
+function sign(payloadB64: string): string {
   return createHmac('sha256', SECRET).update(payloadB64).digest('base64url')
 }
 
 // Mint a token for {purpose, pk, email}, valid for ttlSeconds from now.
-export function signVerificationToken({ purpose, pk, email, ttlSeconds }) {
-  const payload = {
+export function signVerificationToken({
+  purpose,
+  pk,
+  email,
+  ttlSeconds
+}: {
+  purpose: TokenPurpose
+  pk: string | number
+  email: string
+  ttlSeconds: number
+}): string {
+  const payload: TokenPayload = {
     purpose,
     pk: String(pk),
     email,
@@ -54,7 +88,7 @@ export function signVerificationToken({ purpose, pk, email, ttlSeconds }) {
 // Verify a token minted for `purpose` and return its claims { pk, email }. Throws
 // on any malformed, tampered, expired, or wrong-purpose token — callers should
 // treat a throw as "invalid link".
-export function verifyVerificationToken(token, purpose) {
+export function verifyVerificationToken(token: unknown, purpose: TokenPurpose): TokenClaims {
   const parts = String(token).split('.')
   if (parts.length !== 2) {
     throw new Error('malformed token')
@@ -67,7 +101,7 @@ export function verifyVerificationToken(token, purpose) {
   if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
     throw new Error('bad signature')
   }
-  let payload
+  let payload: Partial<TokenPayload>
   try {
     payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'))
   } catch {

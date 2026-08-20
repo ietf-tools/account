@@ -8,17 +8,18 @@ import session from '@fastify/session'
 import sensible from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
 
-import { config } from './lib/config.js'
-import migrationRoutes from './routes/migration.js'
-import avatarRoutes from './routes/avatar.js'
-import portraitRoutes from './routes/portrait.js'
-import passwordlessRoutes from './routes/passwordless.js'
-import emailChangeRoutes from './routes/email-change.js'
-import githubRoutes from './routes/github.js'
-import datatrackerRoutes from './routes/datatracker.js'
-import recoveryEmailsRoutes from './routes/recovery-emails.js'
-import accountRecoveryRoutes from './routes/account-recovery.js'
-import healthRoutes from './routes/health.js'
+import { config } from './lib/config.ts'
+import { errorMessage } from './lib/errors.ts'
+import migrationRoutes from './routes/migration.ts'
+import avatarRoutes from './routes/avatar.ts'
+import portraitRoutes from './routes/portrait.ts'
+import passwordlessRoutes from './routes/passwordless.ts'
+import emailChangeRoutes from './routes/email-change.ts'
+import githubRoutes from './routes/github.ts'
+import datatrackerRoutes from './routes/datatracker.ts'
+import recoveryEmailsRoutes from './routes/recovery-emails.ts'
+import accountRecoveryRoutes from './routes/account-recovery.ts'
+import healthRoutes from './routes/health.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -40,7 +41,7 @@ await app.register(cookie)
 
 // In-memory session store: authentik owns auth (the browser drives its flows
 // directly), so the only server-side state is the legacy migration's two-step
-// handoff — see routes/migration.js. For a multi-instance deployment, put a
+// handoff — see routes/migration.ts. For a multi-instance deployment, put a
 // shared store (Redis) here instead — no schema/migrations required either way.
 await app.register(session, {
   secret: config.session.secret,
@@ -54,7 +55,7 @@ await app.register(session, {
 })
 
 // All API routes live under config.apiPrefix (default "/api", "/app/api" in the
-// account.ietf.org production deployment — see lib/config.js). Auth flows are NOT
+// account.ietf.org production deployment — see lib/config.ts). Auth flows are NOT
 // here: the SPA talks to authentik directly. This backend is migration-only.
 await app.register(healthRoutes, { prefix: config.apiPrefix })
 await app.register(migrationRoutes, { prefix: `${config.apiPrefix}/migration` })
@@ -71,8 +72,8 @@ await app.register(accountRecoveryRoutes, { prefix: `${config.apiPrefix}/account
 // In production the built SPA (nuxt generate -> .output/public) is served by
 // this same server, so the browser only ever talks to one origin.
 const spaDir = join(__dirname, '..', '.output', 'public')
-await app
-  .register(fastifyStatic, {
+try {
+  await app.register(fastifyStatic, {
     root: spaDir,
     wildcard: false,
     // We set Cache-Control ourselves per file (below); let @fastify/static keep
@@ -95,20 +96,20 @@ await app
       }
     }
   })
-  .then(() => {
-    // SPA fallback: anything not matched above returns index.html. sendFile goes
-    // through the same static instance, so index.html gets the no-cache header too.
-    app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith(config.apiPrefix || '/api')) {
-        reply.code(404).send({ error: 'Not found' })
-      } else {
-        reply.sendFile('index.html')
-      }
-    })
+  // SPA fallback: anything not matched above returns index.html. sendFile goes
+  // through the same static instance, so index.html gets the no-cache header too.
+  app.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith(config.apiPrefix || '/api')) {
+      reply.code(404).send({ error: 'Not found' })
+    } else {
+      reply.sendFile('index.html')
+    }
   })
-  .catch((err) => {
-    app.log.warn(`Static SPA dir not available (${spaDir}); run "npm run build" for production. ${err.message}`)
-  })
+} catch (err) {
+  app.log.warn(
+    `Static SPA dir not available (${spaDir}); run "npm run build" for production. ${errorMessage(err)}`
+  )
+}
 
 try {
   await app.listen({ port: config.port, host: '0.0.0.0' })

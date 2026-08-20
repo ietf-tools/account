@@ -1,9 +1,11 @@
+import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
 
-import { getUser, patchUser, clientFromRequest, AuthentikError } from '../lib/authentik.js'
-import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.js'
-import { storageConfigured, putImage, deleteObject, keyFromUrl } from '../lib/storage.js'
-import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imageUpload.js'
+import { getUser, patchUser, clientFromRequest, AuthentikError } from '../lib/authentik.ts'
+import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.ts'
+import { storageConfigured, putImage, deleteObject, keyFromUrl } from '../lib/storage.ts'
+import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imageUpload.ts'
+import type { AuthentikUser } from '../lib/authentik.ts'
 
 /**
  * Avatar management — a custom, backend-only feature (like migration, it needs
@@ -25,7 +27,7 @@ import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imag
  * attribute reads as Gravatar, an `data:image/svg+xml` URI as initials) and are
  * rewritten to a URL the next time the user saves.
  *
- * See routes/portrait.js for the companion full-size picture (aspect-preserving,
+ * See routes/portrait.ts for the companion full-size picture (aspect-preserving,
  * upload-only, stored in attributes.portrait).
  *
  * Deployment notes:
@@ -47,7 +49,7 @@ const ROUTE_BODY_LIMIT = 15 * 1024 * 1024
 // Normalise an arbitrary image into square WebP bytes: honour EXIF orientation,
 // cover-crop to a centred square, downscale, re-encode. Re-encoding also strips
 // metadata and any non-image payload.
-async function toAvatarWebp(buffer) {
+async function toAvatarWebp(buffer: Buffer): Promise<Buffer> {
   return sharp(buffer, { animated: false })
     .rotate()
     .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover', position: 'centre' })
@@ -63,10 +65,16 @@ const INITIALS_VARIANT = 'avatar-initials'
 // on read so an account that hasn't re-saved since keeps showing the right mode.
 const LEGACY_INITIALS_PREFIX = 'data:image/svg+xml'
 
+/**
+ * Which kind of picture `attributes.avatar` currently holds. Derived from the URL
+ * on read (see modeFor) rather than stored alongside it.
+ */
+type AvatarMode = 'gravatar' | 'initials' | 'upload'
+
 // Which mode a stored attributes.avatar value represents. Nothing stored means the
 // user predates this tab, in which case authentik's own fallback lands on Gravatar.
-function modeFor(avatar) {
-  if (!avatar) {
+function modeFor(avatar: unknown): AvatarMode {
+  if (typeof avatar !== 'string' || !avatar) {
     return 'gravatar'
   }
   if (isGravatarUrl(avatar)) {
@@ -84,7 +92,7 @@ function modeFor(avatar) {
 
 // Derive up to two initials from the user's display name (first letter of the
 // first and last word), falling back to the username, then '?'.
-function initialsFor(user) {
+function initialsFor(user: AuthentikUser): string {
   const name = String(user?.name ?? '').trim()
   if (name) {
     const words = name.split(/\s+/)
@@ -104,7 +112,7 @@ function initialsFor(user) {
 
 // Deterministic, pleasant background hue derived from the seed so a given user
 // always gets the same colour.
-function hueFor(seed) {
+function hueFor(seed: unknown): number {
   let hash = 0
   for (const char of String(seed)) {
     hash = (hash * 31 + char.charCodeAt(0)) % 360
@@ -114,7 +122,7 @@ function hueFor(seed) {
 
 // The initials are user-derived and land in a document we serve as its own file,
 // so escape them rather than trusting they're two harmless letters.
-function escapeXml(value) {
+function escapeXml(value: string): string {
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -125,7 +133,7 @@ function escapeXml(value) {
 
 // Build an initials avatar as SVG bytes, ready to store as an object: square,
 // centred glyphs on a solid deterministic background.
-function initialsSvg(user) {
+function initialsSvg(user: AuthentikUser): Buffer {
   const initials = initialsFor(user)
   const hue = hueFor(user?.email || user?.username || initials)
   const svg =
@@ -139,7 +147,12 @@ function initialsSvg(user) {
   return Buffer.from(svg, 'utf8')
 }
 
-export default async function avatarRoutes(app) {
+/** An upload's body: the picture as a base64 data URI. */
+interface ImageBody {
+  image?: unknown
+}
+
+export default async function avatarRoutes(app: FastifyInstance) {
   // Current avatar state for the tab: which mode is active, the avatar authentik
   // resolves right now, and the Gravatar URL to preview/offer.
   app.get('/', async (request, reply) => {
@@ -168,7 +181,7 @@ export default async function avatarRoutes(app) {
   })
 
   // Upload / replace the avatar. Body: { image: "data:image/...;base64,..." }.
-  app.post('/', { bodyLimit: ROUTE_BODY_LIMIT }, async (request, reply) => {
+  app.post<{ Body: ImageBody }>('/', { bodyLimit: ROUTE_BODY_LIMIT }, async (request, reply) => {
     const session = await requireUser(request, reply)
     if (!session) {
       return
@@ -222,7 +235,7 @@ export default async function avatarRoutes(app) {
   // attribute and leaning on authentik's fallback, so the value is always a URL we
   // chose), and delete whatever object the previous one pointed at.
   //
-  // The URL hashes the address, so routes/email-change.js re-derives it when the
+  // The URL hashes the address, so routes/email-change.ts re-derives it when the
   // user's email changes.
   app.delete('/', async (request, reply) => {
     const session = await requireUser(request, reply)

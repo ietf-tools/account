@@ -1,11 +1,15 @@
-import { verifyLegacyCredentials, LegacyError } from '../lib/legacy.js'
+import type { FastifyInstance } from 'fastify'
+
+import { verifyLegacyCredentials, LegacyError } from '../lib/legacy.ts'
+import type { LegacyProfile } from '../lib/legacy.ts'
 import {
   findUserByEmail,
   findUserByUsername,
   createUser,
   setUserPassword,
   AuthentikError
-} from '../lib/authentik.js'
+} from '../lib/authentik.ts'
+import type { AuthentikUser } from '../lib/authentik.ts'
 
 /**
  * Legacy account migration — logic that deliberately lives in the backend.
@@ -27,10 +31,35 @@ import {
  * Nothing here is exposed to admins — it is purely a self-service path for
  * public users crossing over from the old system.
  */
-export default async function migrationRoutes(app) {
+
+/**
+ * The two-step handoff this route needs to remember between /validate and
+ * /migrate: the profile the legacy system vouched for, plus the password it was
+ * proved with (so the browser never has to re-send the credential). It is the
+ * only thing in the backend's in-memory session — see backend/index.ts.
+ */
+declare module 'fastify' {
+  interface Session {
+    migration?: { legacy: LegacyProfile; password: string } | null
+  }
+}
+
+/** Step 1's body: the credentials to prove against the legacy system. */
+interface ValidateBody {
+  identifier?: string
+  password?: string
+}
+
+/** Step 2's body: which of the account's emails to use, and an optional new password. */
+interface MigrateBody {
+  email?: string
+  newPassword?: string
+}
+
+export default async function migrationRoutes(app: FastifyInstance) {
   // Return the first of the given emails that already exists in authentik, if
   // any — used to detect an account that has already been migrated.
-  async function firstMigratedEmail(emails) {
+  async function firstMigratedEmail(emails: string[]): Promise<AuthentikUser | null> {
     for (const email of emails) {
       const user = await findUserByEmail(email)
       if (user) {
@@ -42,7 +71,7 @@ export default async function migrationRoutes(app) {
 
   // Step 1: prove ownership against the legacy system and surface the account's
   // emails for the user to choose from.
-  app.post('/validate', async (request, reply) => {
+  app.post<{ Body: ValidateBody }>('/validate', async (request, reply) => {
     const { identifier, password } = request.body ?? {}
     if (!identifier || !password) {
       return reply.badRequest('identifier and password are required')
@@ -79,7 +108,7 @@ export default async function migrationRoutes(app) {
   })
 
   // Step 2: create the authentik account using the chosen email.
-  app.post('/migrate', async (request, reply) => {
+  app.post<{ Body: MigrateBody }>('/migrate', async (request, reply) => {
     const { email, newPassword } = request.body ?? {}
     const pending = request.session.migration
     if (!pending) {

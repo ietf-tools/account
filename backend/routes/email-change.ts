@@ -1,3 +1,5 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+
 import {
   resolveSessionUser,
   findUserByEmail,
@@ -5,16 +7,19 @@ import {
   patchUser,
   clientFromRequest,
   AuthentikError
-} from '../lib/authentik.js'
-import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.js'
+} from '../lib/authentik.ts'
+import type { AuthentikUser } from '../lib/authentik.ts'
+import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.ts'
 import {
   signVerificationToken,
   verifyVerificationToken,
   PURPOSE_EMAIL_CHANGE
-} from '../lib/token.js'
-import { sendEmailChangeVerification } from '../lib/mailer.js'
-import { blockedEmailDomain } from '../lib/email-domains.js'
-import { config } from '../lib/config.js'
+} from '../lib/token.ts'
+import { sendEmailChangeVerification } from '../lib/mailer.ts'
+import type { TokenClaims } from '../lib/token.ts'
+import { blockedEmailDomain } from '../lib/email-domains.ts'
+import { errorMessage } from '../lib/errors.ts'
+import { config } from '../lib/config.ts'
 
 /**
  * Verified email change — a backend-only feature (like migration / passwordless):
@@ -36,14 +41,28 @@ import { config } from '../lib/config.js'
  * their authentik session cookie. The confirmation step is authorised by the
  * signed token instead (so the link works even on another device).
  */
-export default async function emailChangeRoutes(app) {
+
+/** Step 1's body: the address to move the account to. */
+interface RequestBody {
+  email?: string
+}
+
+/** Step 2's body: the signed token from the confirmation link. */
+interface VerifyBody {
+  token?: unknown
+}
+
+export default async function emailChangeRoutes(app: FastifyInstance) {
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const TTL_SECONDS = 60 * 60 // 1 hour
   const TTL_TEXT = '1 hour'
 
   // Resolve the acting user from their authentik session cookie, or reply 401.
-  async function requireCaller(request, reply) {
-    let user = null
+  async function requireCaller(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<AuthentikUser | null> {
+    let user: AuthentikUser | null = null
     try {
       user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
     } catch (err) {
@@ -61,7 +80,7 @@ export default async function emailChangeRoutes(app) {
   }
 
   // Step 1: request a change — stash the pending address and email a link to it.
-  app.post('/', async (request, reply) => {
+  app.post<{ Body: RequestBody }>('/', async (request, reply) => {
     const user = await requireCaller(request, reply)
     if (!user) {
       return
@@ -75,7 +94,7 @@ export default async function emailChangeRoutes(app) {
     if (email === String(user.email ?? '').toLowerCase()) {
       return reply.badRequest('That is already your email address.')
     }
-    // The same domains sign-up refuses (see lib/email-domains.js). Without this the
+    // The same domains sign-up refuses (see lib/email-domains.ts). Without this the
     // block on registration is a formality: sign up with a personal address, then
     // move the account onto a blocked one from here.
     const blocked = blockedEmailDomain(email)
@@ -119,14 +138,14 @@ export default async function emailChangeRoutes(app) {
         return reply.code(err.status ?? 502).send({ error: err.message })
       }
       // Mailer / SMTP failures land here — surface a clean 502 rather than a 500.
-      request.log.error({ err: err.message }, 'email-change: could not send verification')
+      request.log.error({ err: errorMessage(err) }, 'email-change: could not send verification')
       return reply.code(502).send({ error: 'Could not send the verification email. Please try again.' })
     }
   })
 
   // Step 2: confirm — apply the change if the token is valid and still pending.
-  app.post('/verify', async (request, reply) => {
-    let claims = null
+  app.post<{ Body: VerifyBody }>('/verify', async (request, reply) => {
+    let claims: TokenClaims | null = null
     try {
       claims = verifyVerificationToken(request.body?.token, PURPOSE_EMAIL_CHANGE)
     } catch {
@@ -163,7 +182,7 @@ export default async function emailChangeRoutes(app) {
 
       const attributes = { ...full.attributes }
       delete attributes.pending_email
-      // Gravatar mode stores a URL hashing the address (routes/avatar.js), so it has
+      // Gravatar mode stores a URL hashing the address (routes/avatar.ts), so it has
       // to follow the address — otherwise the avatar keeps resolving against the old
       // one. Uploads and generated initials are address-independent; leave them be.
       if (isGravatarUrl(attributes.avatar)) {

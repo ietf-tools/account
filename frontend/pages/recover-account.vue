@@ -4,7 +4,7 @@
 // login.vue, which passes along who we were signing in as (?account=…).
 //
 // Distinct from /recover, which is authentik's password reset and only helps if
-// the primary address still works. See backend/routes/account-recovery.js.
+// the primary address still works. See backend/routes/account-recovery.ts.
 const route = useRoute()
 const { requestLink } = useAccountRecovery()
 

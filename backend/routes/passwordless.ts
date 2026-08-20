@@ -1,12 +1,15 @@
 import { randomBytes } from 'node:crypto'
 
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+
 import {
   resolveSessionUser,
   userApiGet,
   setUserPassword,
   clientFromRequest,
   AuthentikError
-} from '../lib/authentik.js'
+} from '../lib/authentik.ts'
+import type { AuthentikUser, ClientIdentity } from '../lib/authentik.ts'
 
 /**
  * "Go passwordless" — let a signed-in user drop the password from their account
@@ -26,10 +29,25 @@ import {
  * passkey / social login from here on. (They can still use account recovery to
  * set a new one later.)
  */
-export default async function passwordlessRoutes(app) {
+
+/** An authenticator row from /authenticators/all/, as far as we read it. */
+interface AuthenticatorDevice {
+  type?: string
+  confirmed?: boolean
+}
+
+/** A source connection row from /sources/user_connections/all/, ditto. */
+interface SourceConnection {
+  user?: string | number | null
+}
+
+export default async function passwordlessRoutes(app: FastifyInstance) {
   // Resolve the acting user from their authentik session cookie, or reply 401.
-  async function requireCaller(request, reply) {
-    let user = null
+  async function requireCaller(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<AuthentikUser | null> {
+    let user: AuthentikUser | null = null
     try {
       user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
     } catch (err) {
@@ -48,7 +66,11 @@ export default async function passwordlessRoutes(app) {
 
   // What passwordless sign-in methods does the caller have? We replay their own
   // cookie so these are owner-scoped exactly as their own account pages see them.
-  async function passwordlessMethods(cookieHeader, user, client) {
+  async function passwordlessMethods(
+    cookieHeader: string | undefined,
+    user: AuthentikUser,
+    client: ClientIdentity
+  ): Promise<{ hasPasskey: boolean; hasSocial: boolean }> {
     const [devicesBody, connsBody] = await Promise.all([
       userApiGet(cookieHeader, '/authenticators/all/', client).catch(() => null),
       userApiGet(
@@ -62,15 +84,19 @@ export default async function passwordlessRoutes(app) {
 
     // /authenticators/all/ is a plain array; a webauthn entry means a passkey or
     // security key that's been confirmed.
-    const devices = Array.isArray(devicesBody) ? devicesBody : (devicesBody?.results ?? [])
+    const devices: AuthenticatorDevice[] = Array.isArray(devicesBody)
+      ? devicesBody
+      : (devicesBody?.results ?? [])
     const hasPasskey = devices.some((device) => {
       return String(device.type ?? '').toLowerCase().includes('webauthn') && device.confirmed !== false
     })
 
     // Guard by pk client-side in case a superuser caller sees others' rows.
-    const connections = (connsBody?.results ?? []).filter((conn) => {
-      return conn.user == null || user.pk == null || String(conn.user) === String(user.pk)
-    })
+    const connections: SourceConnection[] = (connsBody?.results ?? []).filter(
+      (conn: SourceConnection) => {
+        return conn.user == null || user.pk == null || String(conn.user) === String(user.pk)
+      }
+    )
     const hasSocial = connections.length > 0
 
     return { hasPasskey, hasSocial }

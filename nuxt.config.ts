@@ -86,7 +86,7 @@ const flows = {
 
 // Email domains that may not be attached to an account (sign-up, recovery
 // addresses, email change). Same env var the backend reads — see
-// backend/lib/config.js for the why and for the parse this mirrors — so one
+// backend/lib/config.ts for the why and for the parse this mirrors — so one
 // setting drives both. What ships to the browser is only the inline check that
 // tells a user before they submit; the gates are authentik's enrollment policy
 // (registration, which never touches our backend) and the backend routes.
@@ -116,7 +116,7 @@ export default defineNuxtConfig({
   },
   // Write /version.json into the generated output so the running SPA can poll it
   // and detect when a newer build has been deployed. It's served no-cache by the
-  // backend (see backend/index.js) — everything else fingerprinted is immutable.
+  // backend (see backend/index.ts) — everything else fingerprinted is immutable.
   hooks: {
     'nitro:build:public-assets': (nitro) => {
       const publicDir = nitro.options.output.publicDir

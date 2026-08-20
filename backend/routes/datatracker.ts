@@ -1,4 +1,8 @@
-import { resolveSessionUser, getUser, clientFromRequest, AuthentikError } from '../lib/authentik.js'
+import type { FastifyInstance } from 'fastify'
+
+import { resolveSessionUser, getUser, clientFromRequest, AuthentikError } from '../lib/authentik.ts'
+import type { AuthentikUser } from '../lib/authentik.ts'
+import { isPlainObject } from '../lib/attributes.ts'
 
 /**
  * Read-only view of the caller's Datatracker link state (`attributes.datatracker`).
@@ -13,12 +17,12 @@ import { resolveSessionUser, getUser, clientFromRequest, AuthentikError } from '
  * ever report on their own account. Reading the attribute itself needs the admin
  * token (hence `getUser`), but nothing here writes.
  */
-export default async function datatrackerRoutes(app) {
+export default async function datatrackerRoutes(app: FastifyInstance) {
   // Matches the shape written by the migration flow's user_write stage.
   const ATTRIBUTE_KEY = 'datatracker'
 
   app.get('/', async (request, reply) => {
-    let user = null
+    let user: AuthentikUser | null = null
     try {
       user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
     } catch (err) {
@@ -34,10 +38,7 @@ export default async function datatrackerRoutes(app) {
     try {
       const full = await getUser(user.pk, clientFromRequest(request))
       const stored = full.attributes?.[ATTRIBUTE_KEY]
-      const linked =
-        stored && typeof stored === 'object' && !Array.isArray(stored)
-          ? Boolean(stored.linked)
-          : false
+      const linked = isPlainObject(stored) ? Boolean(stored.linked) : false
       return { linked }
     } catch (err) {
       if (err instanceof AuthentikError) {

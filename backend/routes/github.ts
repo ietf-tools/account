@@ -1,3 +1,5 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+
 import {
   resolveSessionUser,
   userApiGet,
@@ -5,8 +7,10 @@ import {
   patchUser,
   clientFromRequest,
   AuthentikError
-} from '../lib/authentik.js'
-import { fetchGithubUserById, GithubError } from '../lib/github.js'
+} from '../lib/authentik.ts'
+import type { AuthentikUser, ClientIdentity } from '../lib/authentik.ts'
+import { plainObject } from '../lib/attributes.ts'
+import { fetchGithubUserById, GithubError } from '../lib/github.ts'
 
 /**
  * Fill in `attributes.github` for a signed-in user from their linked GitHub source
@@ -59,22 +63,34 @@ import { fetchGithubUserById, GithubError } from '../lib/github.js'
  * LINK path runs no flow at all (see above) — which is exactly what this feature
  * needs. Enrollment needs no handling either: no account yet means no attribute.
  */
-export default async function githubRoutes(app) {
+
+/**
+ * A source connection row from /sources/user_connections/all/, as far as we read
+ * it. `identifier` is GitHub's numeric user id; `source_obj` is the expanded
+ * source the /all/ endpoint embeds.
+ */
+interface SourceConnection {
+  user?: string | number | null
+  identifier?: string
+  source_obj?: { slug?: string; name?: string }
+}
+
+/** The /login-disabled body: whether to keep treating the link as a credential. */
+interface LoginDisabledBody {
+  disabled?: unknown
+}
+
+export default async function githubRoutes(app: FastifyInstance) {
   // Where the resolved account lands on the authentik user. Matches the shape the
   // GitHub source property mapping writes, so both paths converge on one place.
   const ATTRIBUTE_KEY = 'github'
 
-  // Attributes are free-form JSON — only spread a value we know is a plain object.
-  function plainObject(value) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return value
-    }
-    return {}
-  }
-
   // Resolve the acting user from their authentik session cookie, or reply 401.
-  async function requireCaller(request, reply) {
-    let user = null
+  async function requireCaller(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<AuthentikUser | null> {
+    let user: AuthentikUser | null = null
     try {
       user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
     } catch (err) {
@@ -94,7 +110,11 @@ export default async function githubRoutes(app) {
   // The caller's GitHub source connection, read with their own cookie so it's
   // owner-scoped exactly as the Connected Services page sees it. Null if they
   // haven't linked GitHub.
-  async function githubConnection(cookieHeader, user, client) {
+  async function githubConnection(
+    cookieHeader: string | undefined,
+    user: AuthentikUser,
+    client: ClientIdentity
+  ): Promise<SourceConnection | null> {
     const body = await userApiGet(
       cookieHeader,
       `/sources/user_connections/all/?page_size=100${
@@ -103,7 +123,7 @@ export default async function githubRoutes(app) {
       client
     )
     // Guard by pk client-side in case a superuser caller sees others' rows.
-    const mine = (body?.results ?? []).filter((conn) => {
+    const mine: SourceConnection[] = (body?.results ?? []).filter((conn: SourceConnection) => {
       return conn.user == null || user.pk == null || String(conn.user) === String(user.pk)
     })
     // The /all/ endpoint embeds the expanded source as `source_obj`. Instance slugs
@@ -187,7 +207,7 @@ export default async function githubRoutes(app) {
   // Turn "Sign in with GitHub" off (or back on) for the caller, leaving the link
   // itself in place. Only sets the flag — the authentik policy documented at the
   // top of this file is what actually refuses the sign-in.
-  app.post('/login-disabled', async (request, reply) => {
+  app.post<{ Body: LoginDisabledBody }>('/login-disabled', async (request, reply) => {
     const user = await requireCaller(request, reply)
     if (!user) {
       return

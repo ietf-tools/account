@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
+import type { Transporter } from 'nodemailer'
 
-import { config } from './config.js'
+import { config } from './config.ts'
 
 /**
  * SMTP mailer for backend-sent transactional email — the verified email-change
@@ -12,9 +13,9 @@ import { config } from './config.js'
  * without SMTP configured; sending then fails with a clear error instead.
  */
 
-let transport = null
+let transport: Transporter | null = null
 
-function getTransport() {
+function getTransport(): Transporter {
   if (!config.smtp.host) {
     throw new Error('SMTP is not configured (set SMTP_HOST etc.) — cannot send email.')
   }
@@ -29,12 +30,29 @@ function getTransport() {
   return transport
 }
 
-function escapeHtml(value) {
+function escapeHtml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/**
+ * The wording every confirmation email is built from — the shell below supplies
+ * everything else. `paragraphs` and `closing` are plain text (escaped when they
+ * go into the HTML part); `url` is the confirmation link the button wraps.
+ */
+interface ActionEmailContent {
+  title: string
+  preheader: string
+  heading: string
+  name: string
+  paragraphs: string[]
+  buttonLabel: string
+  url: string
+  expiresText: string
+  closing: string
 }
 
 /**
@@ -55,7 +73,7 @@ function renderActionEmailHtml({
   url,
   expiresText,
   closing
-}) {
+}: ActionEmailContent): string {
   const safeUrl = escapeHtml(url)
   const body = paragraphs
     .map((text) => `<p style="margin:0 0 16px 0;">${escapeHtml(text)}</p>`)
@@ -155,7 +173,13 @@ function renderActionEmailHtml({
 }
 
 // Plain-text alternative, built from the same wording as the HTML part.
-function renderActionEmailText({ name, paragraphs, url, expiresText, closing }) {
+function renderActionEmailText({
+  name,
+  paragraphs,
+  url,
+  expiresText,
+  closing
+}: ActionEmailContent): string {
   return (
     `Hi ${name},\n\n` +
     `${paragraphs.join('\n\n')}\n\n` +
@@ -165,7 +189,11 @@ function renderActionEmailText({ name, paragraphs, url, expiresText, closing }) 
   )
 }
 
-async function sendActionEmail({ to, subject, ...content }) {
+async function sendActionEmail({
+  to,
+  subject,
+  ...content
+}: ActionEmailContent & { to: string; subject: string }): Promise<void> {
   await getTransport().sendMail({
     from: config.smtp.from,
     to,
@@ -175,8 +203,21 @@ async function sendActionEmail({ to, subject, ...content }) {
   })
 }
 
+/** What a caller supplies for any of the verification emails below. */
+export interface VerificationEmail {
+  to: string
+  name: string
+  url: string
+  expiresText: string
+}
+
 // Send the verified email-change confirmation to the NEW address.
-export async function sendEmailChangeVerification({ to, name, url, expiresText }) {
+export async function sendEmailChangeVerification({
+  to,
+  name,
+  url,
+  expiresText
+}: VerificationEmail): Promise<void> {
   await sendActionEmail({
     to,
     subject: 'Confirm your new IETF account email address',
@@ -200,8 +241,14 @@ export async function sendEmailChangeVerification({ to, name, url, expiresText }
 
 // Send the account-recovery link to a confirmed recovery address. Opening it lets
 // the recipient set a new primary address and password on `account`, so the wording
-// leans hard on "if this wasn't you" — see backend/routes/account-recovery.js.
-export async function sendAccountRecoveryVerification({ to, name, url, expiresText, account }) {
+// leans hard on "if this wasn't you" — see backend/routes/account-recovery.ts.
+export async function sendAccountRecoveryVerification({
+  to,
+  name,
+  url,
+  expiresText,
+  account
+}: VerificationEmail & { account: string }): Promise<void> {
   await sendActionEmail({
     to,
     subject: 'Recover your IETF account',
@@ -227,8 +274,14 @@ export async function sendAccountRecoveryVerification({ to, name, url, expiresTe
 
 // Send the recovery-address confirmation to the address being ADDED. Until this
 // link is opened and confirmed, the address is not on the account's recovery list
-// — see backend/routes/recovery-emails.js.
-export async function sendRecoveryEmailVerification({ to, name, url, expiresText, account }) {
+// — see backend/routes/recovery-emails.ts.
+export async function sendRecoveryEmailVerification({
+  to,
+  name,
+  url,
+  expiresText,
+  account
+}: VerificationEmail & { account: string }): Promise<void> {
   await sendActionEmail({
     to,
     subject: 'Confirm this recovery email address for your IETF account',

@@ -35,11 +35,11 @@ entries:
       prompt_data["attributes.recovery_emails"] = []
 
       # attributes.avatar is always a URL, in every mode (see
-      # backend/routes/avatar.js) — never empty, never image bytes, because other
+      # backend/routes/avatar.ts) — never empty, never image bytes, because other
       # apps read it straight through as the OIDC `picture` claim. A new account
       # starts in Gravatar mode, so seed the computed Gravatar URL for the address:
       # MD5 of the trimmed, lower-cased email, byte-for-byte what
-      # backend/lib/gravatar.js builds, so switching modes later is a no-op change.
+      # backend/lib/gravatar.ts builds, so switching modes later is a no-op change.
       # `d=mp` serves the neutral silhouette when the address has no Gravatar.
       email = (prompt_data.get("email") or "").strip().lower()
       if email:

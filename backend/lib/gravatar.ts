@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
  * `d=mp` renders the neutral "mystery person" silhouette when the address has no
  * Gravatar, rather than a broken image.
  */
-export function gravatarUrl(email, size = 256) {
+export function gravatarUrl(email: unknown, size = 256): string {
   const normalised = String(email ?? '').trim().toLowerCase()
   const hash = createHash('md5').update(normalised).digest('hex')
   return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=identicon`
@@ -20,6 +20,6 @@ export function gravatarUrl(email, size = 256) {
 // URL on the user (rather than clearing the attribute), so this is how the avatar
 // route recognises that mode on read — and how the email-change route knows to
 // re-derive the URL, since it is a hash of the address.
-export function isGravatarUrl(url) {
+export function isGravatarUrl(url: unknown): boolean {
   return typeof url === 'string' && /^https:\/\/(www\.)?gravatar\.com\//.test(url)
 }

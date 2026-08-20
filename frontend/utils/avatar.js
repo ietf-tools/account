@@ -1,5 +1,5 @@
 // Client-side twin of the initials avatar the backend generates
-// (backend/routes/avatar.js — `initialsFor` / `hueFor` / `initialsSvg`). The two
+// (backend/routes/avatar.ts — `initialsFor` / `hueFor` / `initialsSvg`). The two
 // must stay in sync: this is what the Avatar tab previews *before* the user
 // commits to initials mode, so any drift makes the preview lie about the result.
 //
@@ -10,7 +10,7 @@
 const AVATAR_SIZE = 256
 
 // First letter of the first and last word of the display name, falling back to the
-// username, then '?'. Mirrors initialsFor() in backend/routes/avatar.js.
+// username, then '?'. Mirrors initialsFor() in backend/routes/avatar.ts.
 export function avatarInitials(user) {
   const name = String(user?.name ?? '').trim()
   if (name) {

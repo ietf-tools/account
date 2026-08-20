@@ -46,8 +46,8 @@ path** — it exists only for custom features that need the admin API token
   [`frontend/composables/useFlow.js`](frontend/composables/useFlow.js) and
   [`frontend/composables/useAuthentik.js`](frontend/composables/useAuthentik.js).
 - **Custom backend logic** (e.g. legacy migration) lives in dedicated routes and
-  libs, not in authentik. See [`backend/routes/migration.js`](backend/routes/migration.js)
-  and [`backend/lib/legacy.js`](backend/lib/legacy.js).
+  libs, not in authentik. See [`backend/routes/migration.ts`](backend/routes/migration.ts)
+  and [`backend/lib/legacy.ts`](backend/lib/legacy.ts).
 
 ### How a login works
 
@@ -142,7 +142,7 @@ which has to place the stage before the captcha (and so before the user write
 stage, or the account exists before anyone agreed).
 
 > Accounts crossing over from the legacy Django system don't run an enrollment flow
-> at all — [`backend/routes/migration.js`](backend/routes/migration.js) creates them
+> at all — [`backend/routes/migration.ts`](backend/routes/migration.ts) creates them
 > with the admin API — so this stage never fires for them.
 
 ### Email confirmation (manual enrollment)
@@ -215,7 +215,7 @@ sign-in if the flow didn't authenticate).
 
 ### Change email address
 
-A signed-in user changes their email through the **backend** (`backend/routes/email-change.js`),
+A signed-in user changes their email through the **backend** (`backend/routes/email-change.ts`),
 **not** an authentik flow. authentik's Email stage can't cleanly send a verification
 to an as-yet-unsaved address in a self-service flow (it has no pending user to send
 to, and policy-injected context doesn't reliably propagate), so this is a
@@ -228,8 +228,8 @@ admin token to write the user. It's two steps:
    cookie (never a browser-sent pk), checks the address isn't already in use, stores
    it on `attributes.pending_email`, and emails a **signed, time-limited token**
    (HMAC over `{pk, newEmail, exp}`, keyed by `SESSION_SECRET` — see
-   [`backend/lib/token.js`](backend/lib/token.js)) as a link to the **new** address
-   (via [`backend/lib/mailer.js`](backend/lib/mailer.js), SMTP).
+   [`backend/lib/token.ts`](backend/lib/token.ts)) as a link to the **new** address
+   (via [`backend/lib/mailer.ts`](backend/lib/mailer.ts), SMTP).
 2. **Confirm + write** — the link points at `/app/verify-email-change?token=…`, a
    normal app route (no Cloudflare rule needed).
    [`verify-email-change.vue`](frontend/pages/verify-email-change.vue) shows a
@@ -256,14 +256,17 @@ which shows the confirmation banner and refreshes the session.
 
 ```
 backend/                (only for features that need the admin token — not auth)
-  index.js              Fastify bootstrap: CORS, cookies, session, static SPA, routes
+  index.ts              Fastify bootstrap: CORS, cookies, session, static SPA, routes
+  tsconfig.json         Type-check only (noEmit) — Node runs the .ts sources as they are
   lib/
-    config.js           Env-driven config (throws on missing SESSION_SECRET / AUTHENTIK_URL)
-    authentik.js        Admin client (service-account token) — used only by migration
-    legacy.js           Legacy Django client (migration only) — swap for your transport
+    config.ts           Env-driven config (throws on missing SESSION_SECRET / AUTHENTIK_URL)
+    authentik.ts        Admin client (service-account token) + the AuthentikUser shape
+    attributes.ts       Narrowing the free-form JSON in user `attributes`
+    errors.ts           errorMessage(): reading a message off a caught `unknown`
+    legacy.ts           Legacy Django client (migration only) — swap for your transport
   routes/
-    migration.js        Legacy → authentik account migration (the only auth-ish route)
-    health.js
+    migration.ts        Legacy → authentik account migration (the only auth-ish route)
+    health.ts
 frontend/
   app.vue, layouts/, pages/     login, register, recover, migrate, index (protected)
   components/
@@ -282,7 +285,9 @@ nuxt.config.ts          SPA config; dev-proxies /api/v3 → authentik, /app/api 
 
 ## Getting started
 
-Requires **Node.js 26+**. The included dev container provides it.
+Requires **Node.js 26+** — the backend is TypeScript and is never compiled, so it
+relies on Node running `.ts` files directly (type stripping). The included dev
+container provides it.
 
 ```bash
 cp .env.sample .env      # then fill in AUTHENTIK_URL, SESSION_SECRET, etc.
@@ -292,9 +297,14 @@ npm install
 Run the two processes in separate terminals:
 
 ```bash
-npm run dev:backend      # Fastify on http://localhost:4000
+npm run dev:backend      # Fastify on http://localhost:4000 (runs the .ts sources directly)
 npm run dev:frontend     # Nuxt on   http://localhost:3000
 ```
+
+Nothing compiles the backend, so type errors surface only at run time unless you
+ask for them: `npm run typecheck:backend` runs `tsc -p backend` (no emit). Relative
+imports in `backend/` therefore carry the real `.ts` extension — Node resolves the
+file on disk, so a `.js` specifier would not exist.
 
 Open http://localhost:3000. In dev, Nuxt proxies `/api/v3` to the **remote
 authentik** and `/app/api` to the backend, so the browser sees a single origin
@@ -325,11 +335,11 @@ branch when you want a bespoke look.
 ## Legacy account migration
 
 The custom, backend-only flow for users crossing over from the old Django system
-(see [`backend/routes/migration.js`](backend/routes/migration.js)):
+(see [`backend/routes/migration.ts`](backend/routes/migration.ts)):
 
 1. User submits their **old** credentials at `/migrate`.
 2. Backend verifies them against the legacy system
-   ([`verifyLegacyCredentials`](backend/lib/legacy.js) — adapt this to your
+   ([`verifyLegacyCredentials`](backend/lib/legacy.ts) — adapt this to your
    legacy transport: HTTP, direct DB, LDAP…).
 3. On success, the backend creates the equivalent authentik user (via the admin
    token), carrying over the profile and a `migrated_from: django` attribute,

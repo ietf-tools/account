@@ -7,7 +7,7 @@
 // even read them (/core/users/me/ omits `attributes`). The attribute is normally
 // written by a source property mapping when someone signs up or signs in *with*
 // GitHub — linking GitHub while already signed in runs no flow, so it stays empty
-// until this refresh fills it in. See backend/routes/github.js.
+// until this refresh fills it in. See backend/routes/github.ts.
 
 export function useGithubLink() {
   const api = useApi()
@@ -18,7 +18,7 @@ export function useGithubLink() {
   // Whether this account has opted out of signing in with GitHub while staying
   // linked. Same storage (`attributes.github`), same reason for going through the
   // backend — but it's authentik's source-flow policy that enforces it, not us.
-  // See backend/routes/github.js.
+  // See backend/routes/github.ts.
   const loginDisabled = ref(false)
   const updating = ref(false)
 

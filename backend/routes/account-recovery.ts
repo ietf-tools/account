@@ -1,3 +1,5 @@
+import type { FastifyInstance } from 'fastify'
+
 import {
   findUserByEmail,
   findUserByUsername,
@@ -6,22 +8,25 @@ import {
   setUserPassword,
   clientFromRequest,
   AuthentikError
-} from '../lib/authentik.js'
+} from '../lib/authentik.ts'
+import type { AuthentikUser, ClientIdentity } from '../lib/authentik.ts'
 import {
   RECOVERY_EMAILS_KEY,
   storedRecoveryEmails,
   listRecoveryEmails,
   normalizeRecoveryEmail,
   hasRecoveryEmail
-} from '../lib/recovery-emails.js'
+} from '../lib/recovery-emails.ts'
 import {
   signVerificationToken,
   verifyVerificationToken,
   PURPOSE_ACCOUNT_RECOVERY
-} from '../lib/token.js'
-import { sendAccountRecoveryVerification } from '../lib/mailer.js'
-import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.js'
-import { config } from '../lib/config.js'
+} from '../lib/token.ts'
+import type { TokenClaims } from '../lib/token.ts'
+import { sendAccountRecoveryVerification } from '../lib/mailer.ts'
+import { gravatarUrl, isGravatarUrl } from '../lib/gravatar.ts'
+import { errorMessage } from '../lib/errors.ts'
+import { config } from '../lib/config.ts'
 
 /**
  * Account recovery — getting back in when you can neither sign in NOR read mail at
@@ -51,7 +56,26 @@ import { config } from '../lib/config.js'
  * are POSTs the SPA makes, so a mail scanner following the URL changes nothing —
  * and step 2 is a read even then.
  */
-export default async function accountRecoveryRoutes(app) {
+
+/** Step 1's body: which account, and which of its recovery addresses to mail. */
+interface RequestBody {
+  account?: string
+  recovery?: string
+}
+
+/** Step 2's body: the signed token from the recovery link. */
+interface OptionsBody {
+  token?: unknown
+}
+
+/** Step 3's body: the token, the address to promote, and the new password. */
+interface CompleteBody {
+  token?: unknown
+  email?: string
+  password?: string
+}
+
+export default async function accountRecoveryRoutes(app: FastifyInstance) {
   const PENDING_KEY = 'pending_account_recovery'
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   // Shorter than the email-change / add-recovery-address links (1 hour): this one
@@ -65,9 +89,9 @@ export default async function accountRecoveryRoutes(app) {
   const MIN_PASSWORD_LENGTH = 8
 
   // The account someone names at step 1. Username and email are kept identical by
-  // this app (see routes/email-change.js), but the sign-in form accepts either, so
+  // this app (see routes/email-change.ts), but the sign-in form accepts either, so
   // accept either here rather than failing someone who typed what they always type.
-  async function findAccount(identifier) {
+  async function findAccount(identifier: string): Promise<AuthentikUser | null> {
     if (!identifier) {
       return null
     }
@@ -77,8 +101,11 @@ export default async function accountRecoveryRoutes(app) {
   // Resolve a token to the account it authorises, or null. The pending marker must
   // still name the same address, which is what makes a link single-use: step 3
   // clears it, and a second recovery request replaces it.
-  async function accountForToken(token, client) {
-    let claims = null
+  async function accountForToken(
+    token: unknown,
+    client: ClientIdentity
+  ): Promise<{ user: AuthentikUser; claims: TokenClaims } | null> {
+    let claims: TokenClaims | null = null
     try {
       claims = verifyVerificationToken(token, PURPOSE_ACCOUNT_RECOVERY)
     } catch {
@@ -95,7 +122,7 @@ export default async function accountRecoveryRoutes(app) {
   }
 
   // Step 1: request a recovery link. Always answers the same.
-  app.post('/', async (request, reply) => {
+  app.post<{ Body: RequestBody }>('/', async (request, reply) => {
     const account = String(request.body?.account ?? '').trim()
     const recovery = String(request.body?.recovery ?? '').trim().toLowerCase()
 
@@ -145,7 +172,7 @@ export default async function accountRecoveryRoutes(app) {
       // returned for accounts that got far enough to matter, which is the leak this
       // endpoint exists to avoid. Log it loudly instead — nobody else will see it.
       request.log.error(
-        { err: err instanceof AuthentikError ? err.message : String(err?.message ?? err) },
+        { err: errorMessage(err) },
         'account-recovery: request failed (reported as sent)'
       )
       return { sent: true }
@@ -158,7 +185,7 @@ export default async function accountRecoveryRoutes(app) {
   // Note this discloses the account's other recovery addresses to whoever holds the
   // link. That is inherent in "choose which one to keep", and the holder has already
   // proved control of one of them.
-  app.post('/options', async (request, reply) => {
+  app.post<{ Body: OptionsBody }>('/options', async (request, reply) => {
     const client = clientFromRequest(request)
     try {
       const found = await accountForToken(request.body?.token, client)
@@ -184,7 +211,7 @@ export default async function accountRecoveryRoutes(app) {
   // username, the password is replaced, and the old primary address is dropped —
   // it is deliberately NOT kept as a recovery address, since being unable to read
   // mail there is the reason someone is here.
-  app.post('/complete', async (request, reply) => {
+  app.post<{ Body: CompleteBody }>('/complete', async (request, reply) => {
     const chosen = String(request.body?.email ?? '').trim().toLowerCase()
     const password = String(request.body?.password ?? '')
     const client = clientFromRequest(request)
@@ -225,7 +252,7 @@ export default async function accountRecoveryRoutes(app) {
       delete attributes.pending_email
       delete attributes.pending_recovery_email
       // A gravatar avatar hashes the address, so it has to follow it — same rule as
-      // routes/email-change.js. Uploads and generated initials are unaffected.
+      // routes/email-change.ts. Uploads and generated initials are unaffected.
       if (isGravatarUrl(attributes.avatar)) {
         attributes.avatar = gravatarUrl(chosen)
       }

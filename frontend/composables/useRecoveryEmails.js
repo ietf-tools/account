@@ -3,7 +3,7 @@
 //
 // Goes through the app backend because the browser can't read user attributes at
 // all — /core/users/me/ omits `attributes` — and can't write them either; both need
-// the admin token. See backend/routes/recovery-emails.js.
+// the admin token. See backend/routes/recovery-emails.ts.
 
 export function useRecoveryEmails() {
   const api = useApi()

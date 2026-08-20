@@ -1,6 +1,6 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 
-import { config } from './config.js'
+import { config } from './config.ts'
 
 /**
  * S3-compatible object storage for uploaded avatars (AWS S3, MinIO, …).
@@ -14,17 +14,17 @@ import { config } from './config.js'
 
 const { storage } = config
 
-let client = null
+let client: S3Client | null = null
 
 // Configured only when a bucket, credentials, and a public base URL are all set.
 // Avatar upload requires this; the rest of the app (and Gravatar mode) does not.
-export function storageConfigured() {
+export function storageConfigured(): boolean {
   return Boolean(
     storage.bucket && storage.accessKeyId && storage.secretAccessKey && storage.publicUrl
   )
 }
 
-function getClient() {
+function getClient(): S3Client {
   if (!client) {
     client = new S3Client({
       region: storage.region,
@@ -40,18 +40,24 @@ function getClient() {
 }
 
 // Public URL other apps fetch the object from: <publicUrl>/<key>.
-export function publicUrlFor(key) {
+export function publicUrlFor(key: string): string {
   return `${storage.publicUrl}/${key}`
 }
 
 // If `url` points at our own storage, return its object key; otherwise null.
 // Used to delete the previous object on re-upload / removal without tracking the
 // key separately (we derive it from the URL currently on the user).
-export function keyFromUrl(url) {
-  if (!url || !storage.publicUrl || !url.startsWith(`${storage.publicUrl}/`)) {
+export function keyFromUrl(url: unknown): string | null {
+  if (typeof url !== 'string' || !storage.publicUrl || !url.startsWith(`${storage.publicUrl}/`)) {
     return null
   }
   return url.slice(storage.publicUrl.length + 1)
+}
+
+/** How a stored object is typed and named; defaults to the routes' WebP. */
+interface StoredImageOptions {
+  contentType?: string
+  extension?: string
 }
 
 // Store the (already-processed) image bytes under a content-hashed key and
@@ -62,12 +68,12 @@ export function keyFromUrl(url) {
 // unique to the content. Defaults are the WebP the upload routes produce;
 // generated SVGs pass their own type/extension.
 export async function putImage(
-  userPk,
-  variant,
-  buffer,
-  contentHash,
-  { contentType = 'image/webp', extension = 'webp' } = {}
-) {
+  userPk: string | number,
+  variant: string,
+  buffer: Buffer,
+  contentHash: string,
+  { contentType = 'image/webp', extension = 'webp' }: StoredImageOptions = {}
+): Promise<{ key: string; url: string }> {
   const key = `${storage.keyPrefix}${userPk}-${variant}-${contentHash}.${extension}`
   await getClient().send(
     new PutObjectCommand({
@@ -83,7 +89,7 @@ export async function putImage(
 
 // Best-effort delete of a previously stored object; a failure here shouldn't
 // fail the surrounding operation (the attribute update is what matters).
-export async function deleteObject(key) {
+export async function deleteObject(key: string | null): Promise<void> {
   if (!key) {
     return
   }

@@ -1,4 +1,4 @@
-// Client-side twin of backend/lib/email-domains.js: which email domains may not be
+// Client-side twin of backend/lib/email-domains.ts: which email domains may not be
 // attached to an account, and how an address is matched against them. The two must
 // stay in sync — the list itself already is (both sides read BLOCKED_EMAIL_DOMAINS,
 // the browser's copy arriving through nuxt.config.ts as runtime config), so it's the

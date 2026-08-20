@@ -1,9 +1,9 @@
 /**
  * Which email domains may not be attached to an account, and how an address is
  * matched against them. Shared by every backend route that accepts an address the
- * user picked: routes/recovery-emails.js and routes/email-change.js.
+ * user picked: routes/recovery-emails.ts and routes/email-change.ts.
  *
- * It lives here rather than in either route for the same reason lib/recovery-emails.js
+ * It lives here rather than in either route for the same reason lib/recovery-emails.ts
  * does: the two must agree exactly on what counts as blocked. If they drifted, an
  * address refused as a recovery address could still be moved in as the primary one,
  * which is the same account either way.
@@ -26,7 +26,7 @@
  * host).
  */
 
-import { config } from './config.js'
+import { config } from './config.ts'
 
 /**
  * The blocked domain `email` falls under, or null if it's allowed. Returns the
@@ -36,7 +36,10 @@ import { config } from './config.js'
  * An unparseable address is not blocked: it isn't this function's job to reject
  * one, and every caller validates the shape separately.
  */
-export function blockedEmailDomain(email, domains = config.blockedEmailDomains) {
+export function blockedEmailDomain(
+  email: unknown,
+  domains: string[] = config.blockedEmailDomains
+): string | null {
   const address = String(email ?? '').trim().toLowerCase()
   const at = address.lastIndexOf('@')
   if (at < 0) {

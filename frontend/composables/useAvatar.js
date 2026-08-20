@@ -25,7 +25,7 @@ function readAsDataUri(file) {
   })
 }
 
-// Mirrors the backend's mode detection (routes/avatar.js): the stored avatar is
+// Mirrors the backend's mode detection (routes/avatar.ts): the stored avatar is
 // always a URL, so its shape is what says which mode produced it — a gravatar.com
 // URL, one of our generated `…-avatar-initials-….svg` objects, or an upload. The
 // `data:image/svg+xml` case covers both values written by earlier versions and the

@@ -1,8 +1,9 @@
+import type { FastifyInstance } from 'fastify'
 import sharp from 'sharp'
 
-import { getUser, patchUser, clientFromRequest, AuthentikError } from '../lib/authentik.js'
-import { storageConfigured, putImage, deleteObject, keyFromUrl } from '../lib/storage.js'
-import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imageUpload.js'
+import { getUser, patchUser, clientFromRequest, AuthentikError } from '../lib/authentik.ts'
+import { storageConfigured, putImage, deleteObject, keyFromUrl } from '../lib/storage.ts'
+import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imageUpload.ts'
 
 /**
  * Portrait picture — a higher-resolution, full-frame photo of the user, stored
@@ -11,7 +12,7 @@ import { ALLOWED_INPUT, parseDataUri, shortHash, requireUser } from '../lib/imag
  *   • aspect ratio preserved (no square crop),
  *   • its URL saved in the `attributes.portrait` user field.
  *
- * Same object-storage/CDN backend as the avatar (see routes/avatar.js): we store
+ * Same object-storage/CDN backend as the avatar (see routes/avatar.ts): we store
  * the processed bytes and record only the URL, so the value stays small and
  * cacheable wherever it's surfaced (expose it to other apps with an OIDC property
  * mapping, e.g. `{"portrait": request.user.attributes.get("portrait")}`).
@@ -26,7 +27,7 @@ const ROUTE_BODY_LIMIT = 25 * 1024 * 1024
 // Normalise into WebP while preserving aspect ratio: honour EXIF orientation, fit
 // within a PORTRAIT_MAX_EDGE box without enlarging, re-encode (also strips
 // metadata and any non-image payload).
-async function toPortraitWebp(buffer) {
+async function toPortraitWebp(buffer: Buffer): Promise<Buffer> {
   return sharp(buffer, { animated: false })
     .rotate()
     .resize(PORTRAIT_MAX_EDGE, PORTRAIT_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
@@ -34,7 +35,12 @@ async function toPortraitWebp(buffer) {
     .toBuffer()
 }
 
-export default async function portraitRoutes(app) {
+/** An upload's body: the picture as a base64 data URI. */
+interface ImageBody {
+  image?: unknown
+}
+
+export default async function portraitRoutes(app: FastifyInstance) {
   // Whether the user currently has a portrait, and its URL.
   app.get('/', async (request, reply) => {
     const session = await requireUser(request, reply)
@@ -53,7 +59,7 @@ export default async function portraitRoutes(app) {
   })
 
   // Upload / replace the portrait. Body: { image: "data:image/...;base64,..." }.
-  app.post('/', { bodyLimit: ROUTE_BODY_LIMIT }, async (request, reply) => {
+  app.post<{ Body: ImageBody }>('/', { bodyLimit: ROUTE_BODY_LIMIT }, async (request, reply) => {
     const session = await requireUser(request, reply)
     if (!session) {
       return

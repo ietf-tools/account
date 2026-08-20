@@ -5,8 +5,12 @@
 #
 # The Nuxt SPA is deployed separately to Cloudflare Pages, so this image never
 # builds or serves the frontend — it installs production dependencies (Fastify +
-# plugins, no Nuxt/Tailwind toolchain) and runs backend/index.js. The backend
-# degrades gracefully when the SPA dir is absent (see backend/index.js).
+# plugins, no Nuxt/Tailwind toolchain) and runs backend/index.ts. The backend
+# degrades gracefully when the SPA dir is absent (see backend/index.ts).
+#
+# The backend is TypeScript and is NOT compiled: Node strips the types itself, so
+# there is no build stage here and `tsc` (a devDependency, used only to type-check
+# in CI/dev) is not installed in the image.
 #
 # Everything is served under one origin (account.ietf.org): authentik owns the
 # root (including its own /api/v3), the SPA is at /app, and this backend is
@@ -56,4 +60,4 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.BACKEND_PORT||4000)+(process.env.API_PREFIX||'/api')+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "backend/index.js"]
+CMD ["node", "backend/index.ts"]

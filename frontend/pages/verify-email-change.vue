@@ -1,5 +1,5 @@
 <script setup>
-// Email-change confirmation link. The backend (routes/email-change.js) emails a
+// Email-change confirmation link. The backend (routes/email-change.ts) emails a
 // signed token to the NEW address; the link points here at
 // /app/verify-email-change?token=…. This page is the pre-fetch guard: opening the
 // link only *renders* this screen (a bare GET changes nothing), and the change is

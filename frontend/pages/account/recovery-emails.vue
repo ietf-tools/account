@@ -3,7 +3,7 @@
 // the authentik user as `attributes.recovery_emails`.
 //
 // Adding is verified the same way changing the primary address is (profile.vue +
-// backend/routes/email-change.js): this half only requests the addition and
+// backend/routes/email-change.ts): this half only requests the addition and
 // triggers the confirmation email; the address is added when the recipient opens
 // the link, which lands on verify-recovery-email.vue.
 definePageMeta({ middleware: 'auth', layout: 'account' })

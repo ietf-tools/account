@@ -1,5 +1,5 @@
 <script setup>
-// Recovery-address confirmation link. The backend (routes/recovery-emails.js)
+// Recovery-address confirmation link. The backend (routes/recovery-emails.ts)
 // emails a signed token to the address being ADDED; the link points here at
 // /app/verify-recovery-email?token=…. This page is the pre-fetch guard: opening
 // the link only *renders* this screen (a bare GET changes nothing), and the

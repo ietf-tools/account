@@ -1,4 +1,5 @@
-import { config } from './config.js'
+import { config } from './config.ts'
+import { errorMessage } from './errors.ts'
 
 /**
  * Minimal GitHub REST client — resolves a GitHub **numeric user id** to that
@@ -6,7 +7,7 @@ import { config } from './config.js'
  *
  * The numeric id is all authentik keeps for a linked GitHub account: the OAuth
  * source connection's `identifier` comes from the GitHub source's `get_user_id`,
- * i.e. `info["id"]`. See [routes/github.js](../routes/github.js) for why we have
+ * i.e. `info["id"]`. See [routes/github.ts](../routes/github.ts) for why we have
  * to resolve it ourselves.
  *
  * Unauthenticated calls to api.github.com are rate limited to 60/hour **per IP** —
@@ -18,7 +19,10 @@ import { config } from './config.js'
 const API = 'https://api.github.com'
 
 export class GithubError extends Error {
-  constructor(message, status = 502, detail = null) {
+  status: number
+  detail: unknown
+
+  constructor(message: string, status = 502, detail: unknown = null) {
     super(message)
     this.name = 'GithubError'
     this.status = status
@@ -26,8 +30,22 @@ export class GithubError extends Error {
   }
 }
 
+/** GitHub's `/user/{id}` payload, read only for the three fields we keep. */
+interface GithubUserResponse {
+  login?: string
+  id?: number | string
+  html_url?: string
+}
+
+/** What we resolve a numeric GitHub id to. */
+export interface GithubAccount {
+  login: string
+  id: string
+  profileUrl: string
+}
+
 // Look up a GitHub account by its numeric id. Returns { login, id, profileUrl }.
-export async function fetchGithubUserById(id) {
+export async function fetchGithubUserById(id: unknown): Promise<GithubAccount> {
   const numericId = String(id ?? '').trim()
   // authentik's identifier is always numeric for GitHub, but a connection made by
   // another source type (or a hand-edited one) would send us elsewhere.
@@ -35,7 +53,7 @@ export async function fetchGithubUserById(id) {
     throw new GithubError('That connection has no numeric GitHub id to look up.', 400)
   }
 
-  const headers = {
+  const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
     // GitHub rejects requests without a User-Agent.
@@ -45,11 +63,11 @@ export async function fetchGithubUserById(id) {
     headers.Authorization = `Bearer ${config.github.apiToken}`
   }
 
-  let response = null
+  let response: Response
   try {
     response = await fetch(`${API}/user/${numericId}`, { headers })
   } catch (err) {
-    throw new GithubError('GitHub is unreachable right now.', 502, err.message)
+    throw new GithubError('GitHub is unreachable right now.', 502, errorMessage(err))
   }
 
   if (response.status === 404) {
@@ -63,9 +81,9 @@ export async function fetchGithubUserById(id) {
     throw new GithubError(`GitHub API error (HTTP ${response.status})`, 502)
   }
 
-  let body = null
+  let body: GithubUserResponse | null = null
   try {
-    body = await response.json()
+    body = (await response.json()) as GithubUserResponse
   } catch {
     body = null
   }

@@ -2,7 +2,7 @@
 // can offer a reload instead of letting stale code call endpoints that may have
 // changed. The running bundle bakes in its own buildId (runtimeConfig.public,
 // set in nuxt.config.ts); we compare it against /version.json, which the backend
-// serves no-cache (see backend/index.js). Complements chunk-reload.client.js:
+// serves no-cache (see backend/index.ts). Complements chunk-reload.client.js:
 // that handles hard chunk failures, this handles the graceful "please reload".
 export function useAppUpdate() {
   const updateAvailable = useState('appUpdateAvailable', () => false)

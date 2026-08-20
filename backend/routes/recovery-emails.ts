@@ -1,3 +1,5 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+
 import {
   resolveSessionUser,
   findUserByEmail,
@@ -5,35 +7,39 @@ import {
   patchUser,
   clientFromRequest,
   AuthentikError
-} from '../lib/authentik.js'
+} from '../lib/authentik.ts'
+import type { AuthentikUser } from '../lib/authentik.ts'
 import {
   signVerificationToken,
   verifyVerificationToken,
   PURPOSE_RECOVERY_EMAIL
-} from '../lib/token.js'
-import { sendRecoveryEmailVerification } from '../lib/mailer.js'
+} from '../lib/token.ts'
+import type { TokenClaims } from '../lib/token.ts'
+import { sendRecoveryEmailVerification } from '../lib/mailer.ts'
 import {
   RECOVERY_EMAILS_KEY,
   normalizeRecoveryEmail as normalize,
   storedRecoveryEmails,
-  hasRecoveryEmail as hasAddress
-} from '../lib/recovery-emails.js'
-import { blockedEmailDomain } from '../lib/email-domains.js'
-import { config } from '../lib/config.js'
+  hasRecoveryEmail as hasAddress,
+  readableRecoveryEmails
+} from '../lib/recovery-emails.ts'
+import { blockedEmailDomain } from '../lib/email-domains.ts'
+import { errorMessage } from '../lib/errors.ts'
+import { config } from '../lib/config.ts'
 
 /**
  * The caller's recovery email addresses (`attributes.recovery_emails`, seeded to
  * `[]` on enrollment — see authentik/ietf-flows/ietf-enrollment-account-defaults.yaml):
  * list them, add one (verified), and remove one.
  *
- * Exists for the same reason as routes/datatracker.js: the browser cannot see user
+ * Exists for the same reason as routes/datatracker.ts: the browser cannot see user
  * attributes at all (authentik's self serializer at /core/users/me/ omits
  * `attributes`), let alone write them — both need the admin token. The caller is
  * resolved from their own authentik session cookie, never from anything the browser
  * sends, so these can only ever read or change the caller's own list.
  *
  * ── Adding is verified, in two steps ───────────────────────────────────────────
- * Modelled on routes/email-change.js, and both steps are pre-fetch-safe (a bare GET
+ * Modelled on routes/email-change.ts, and both steps are pre-fetch-safe (a bare GET
  * never mutates — the confirm is an explicit POST the SPA makes, and the SPA needs
  * JS to make it):
  *   1. POST /        — the signed-in user proposes an address. We stash it on
@@ -47,7 +53,18 @@ import { config } from '../lib/config.js'
  * can never end up on the list — which matters, because this list is what gets
  * someone back into an account.
  */
-export default async function recoveryEmailsRoutes(app) {
+
+/** Step 1's body: the address being proposed. */
+interface RequestBody {
+  email?: string
+}
+
+/** Step 2's body: the signed token from the confirmation link. */
+interface VerifyBody {
+  token?: unknown
+}
+
+export default async function recoveryEmailsRoutes(app: FastifyInstance) {
   const ATTRIBUTE_KEY = RECOVERY_EMAILS_KEY
   const PENDING_KEY = 'pending_recovery_email'
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -59,12 +76,15 @@ export default async function recoveryEmailsRoutes(app) {
   const MAX_ADDRESSES = 5
 
   // How an entry is read, and how addresses are compared, is shared with the
-  // account-recovery flow — see lib/recovery-emails.js for why.
+  // account-recovery flow — see lib/recovery-emails.ts for why.
   const storedList = storedRecoveryEmails
 
   // Resolve the acting user from their authentik session cookie, or reply 401.
-  async function requireCaller(request, reply) {
-    let user = null
+  async function requireCaller(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<AuthentikUser | null> {
+    let user: AuthentikUser | null = null
     try {
       user = await resolveSessionUser(request.headers.cookie, clientFromRequest(request))
     } catch (err) {
@@ -89,7 +109,7 @@ export default async function recoveryEmailsRoutes(app) {
     try {
       const full = await getUser(user.pk, clientFromRequest(request))
       return {
-        emails: storedList(full).map(normalize).filter(Boolean),
+        emails: readableRecoveryEmails(storedList(full)),
         max: MAX_ADDRESSES,
         // Surfaced so the page can say an address is awaiting confirmation instead
         // of looking like the request vanished.
@@ -105,7 +125,7 @@ export default async function recoveryEmailsRoutes(app) {
 
   // Step 1: propose an address — stash it as pending and email a link to it.
   // Nothing is added to the list here.
-  app.post('/', async (request, reply) => {
+  app.post<{ Body: RequestBody }>('/', async (request, reply) => {
     const user = await requireCaller(request, reply)
     if (!user) {
       return
@@ -121,7 +141,7 @@ export default async function recoveryEmailsRoutes(app) {
     }
     // A recovery address is what gets someone back into an account, so it has to be
     // a mailbox that outlives their association with an organisation — which is
-    // exactly what a blocked domain isn't (see lib/email-domains.js).
+    // exactly what a blocked domain isn't (see lib/email-domains.ts).
     const blocked = blockedEmailDomain(email)
     if (blocked) {
       return reply.badRequest(
@@ -133,7 +153,7 @@ export default async function recoveryEmailsRoutes(app) {
     try {
       // Recovery addresses are how an account is identified when its owner has lost
       // the primary address, so two accounts must not answer to the same one. Same
-      // conflict rule as routes/email-change.js, for the same reason.
+      // conflict rule as routes/email-change.ts, for the same reason.
       const existing = await findUserByEmail(email)
       if (existing && String(existing.pk) !== String(user.pk)) {
         return reply.conflict('That email address is already in use by another account.')
@@ -179,7 +199,10 @@ export default async function recoveryEmailsRoutes(app) {
         return reply.code(err.status ?? 502).send({ error: err.message })
       }
       // Mailer / SMTP failures land here — surface a clean 502 rather than a 500.
-      request.log.error({ err: err.message }, 'recovery-emails: could not send verification')
+      request.log.error(
+        { err: errorMessage(err) },
+        'recovery-emails: could not send verification'
+      )
       return reply
         .code(502)
         .send({ error: 'Could not send the verification email. Please try again.' })
@@ -189,8 +212,8 @@ export default async function recoveryEmailsRoutes(app) {
   // Step 2: confirm — add the address if the token is valid and still pending.
   // No session needed: the token authorises it, so the link works on any device
   // (the whole point is that it was opened at the address being proved).
-  app.post('/verify', async (request, reply) => {
-    let claims = null
+  app.post<{ Body: VerifyBody }>('/verify', async (request, reply) => {
+    let claims: TokenClaims | null = null
     try {
       claims = verifyVerificationToken(request.body?.token, PURPOSE_RECOVERY_EMAIL)
     } catch {
@@ -268,7 +291,7 @@ export default async function recoveryEmailsRoutes(app) {
   // Drop one address from the list. The address is matched case-insensitively
   // (addresses are compared, not identified by index — the browser's copy of the
   // list can be stale, and removing "the third one" would then remove the wrong one).
-  app.delete('/:email', async (request, reply) => {
+  app.delete<{ Params: { email?: string } }>('/:email', async (request, reply) => {
     const user = await requireCaller(request, reply)
     if (!user) {
       return
@@ -300,7 +323,7 @@ export default async function recoveryEmailsRoutes(app) {
       await patchUser(user.pk, { attributes }, client)
 
       request.log.info({ pk: user.pk, remaining: kept.length }, 'recovery-emails: address removed')
-      return { emails: kept.map(normalize).filter(Boolean) }
+      return { emails: readableRecoveryEmails(kept) }
     } catch (err) {
       if (err instanceof AuthentikError) {
         return reply.code(err.status ?? 502).send({ error: err.message })
