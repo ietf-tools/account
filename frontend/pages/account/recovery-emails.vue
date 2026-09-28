@@ -166,7 +166,7 @@ onMounted(() => {
           required
         />
         <p class="mt-1 text-xs text-slate-500">
-          We'll send a confirmation link to this address. It's only added to your recovery emails
+          We'll send a confirmation link to this address if it is not already registered as an account. It's only added to your recovery emails
           once that link is opened and confirmed.
         </p>
         <p v-if="addError" class="mt-1 text-sm text-red-600">{{ addError }}</p>

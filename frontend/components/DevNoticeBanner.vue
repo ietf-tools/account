@@ -2,7 +2,7 @@
   <!-- Standing notice that this deployment isn't the real thing, shown on every
        page (rendered from app.vue). Unconditional on purpose: the point is to warn
        people on the *deployed* test environment, so it must survive the production
-       build — drop the tag from app.vue when the site goes live. Sits below
+       build — comment out the tag in app.vue when the site goes live. Sits below
        UpdateBanner's z-[100] so that one stays on top if both ever show at once. -->
   <div
     class="fixed inset-x-0 top-0 z-[90] flex items-center justify-center gap-2 border-b

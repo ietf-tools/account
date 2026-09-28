@@ -66,3 +66,52 @@ export function hasRecoveryEmail(stored: unknown[], email: unknown): boolean {
   }
   return stored.some((entry) => normalizeRecoveryEmail(entry)?.email.toLowerCase() === target)
 }
+
+/**
+ * The address awaiting confirmation, `attributes.pending_recovery_email`, written
+ * as { email, expires_at } (epoch ms) with the same lifetime as the link mailed for
+ * it. The expiry is there so a pending address stops being shown once its link can
+ * no longer confirm it — including one we never mailed a link for (an address
+ * already on another account: see routes/recovery-emails.ts).
+ *
+ * Markers written before the expiry existed are bare address strings. Their links
+ * are still bounded by the token's own expiry, so the confirm step still honours
+ * them; they just aren't shown, since how long they have left is unknown.
+ */
+export const PENDING_RECOVERY_EMAIL_KEY = 'pending_recovery_email'
+
+/** A pending marker as it is written. */
+export interface PendingRecoveryEmail {
+  email: string
+  expires_at: number
+}
+
+export function pendingRecoveryEmail(email: string, ttlSeconds: number): PendingRecoveryEmail {
+  return { email, expires_at: Date.now() + ttlSeconds * 1000 }
+}
+
+// The pending address regardless of expiry, for matching against a token (which
+// carries its own). Null when there's no readable marker.
+export function pendingRecoveryEmailAddress(user: AuthentikUser | null | undefined): string | null {
+  const stored = user?.attributes?.[PENDING_RECOVERY_EMAIL_KEY]
+  if (typeof stored === 'string') {
+    return stored.trim() || null
+  }
+  if (isPlainObject(stored) && typeof stored.email === 'string') {
+    return stored.email.trim() || null
+  }
+  return null
+}
+
+// The pending address only while it's still live, for showing to the user. Legacy
+// string markers have no known expiry, so they count as expired here.
+export function livePendingRecoveryEmail(user: AuthentikUser | null | undefined): string | null {
+  const stored = user?.attributes?.[PENDING_RECOVERY_EMAIL_KEY]
+  if (!isPlainObject(stored) || typeof stored.expires_at !== 'number') {
+    return null
+  }
+  if (stored.expires_at <= Date.now()) {
+    return null
+  }
+  return pendingRecoveryEmailAddress(user)
+}

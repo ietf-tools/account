@@ -9,7 +9,8 @@ useHead({
 </script>
 
 <template>
-  <DevNoticeBanner />
+  <!-- Dev/testing notice — disabled. Uncomment to show it again. -->
+  <!-- <DevNoticeBanner /> -->
   <UpdateBanner />
   <NuxtLayout>
     <NuxtPage />

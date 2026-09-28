@@ -136,7 +136,7 @@ onMounted(async () => {
               required
             />
             <p class="mt-1 text-xs text-slate-500">
-              We'll send a confirmation link to this email address. Your email (and sign-in) only changes
+              We'll send a confirmation link to this email address if it is not already registered as an account. Your email (and sign-in) only changes
               once you click it and confirm the modification.
             </p>
             <p v-if="emailError" class="mt-1 text-sm text-red-600">{{ emailError }}</p>

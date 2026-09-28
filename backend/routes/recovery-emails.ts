@@ -21,7 +21,11 @@ import {
   normalizeRecoveryEmail as normalize,
   storedRecoveryEmails,
   hasRecoveryEmail as hasAddress,
-  readableRecoveryEmails
+  readableRecoveryEmails,
+  PENDING_RECOVERY_EMAIL_KEY,
+  pendingRecoveryEmail,
+  pendingRecoveryEmailAddress,
+  livePendingRecoveryEmail
 } from '../lib/recovery-emails.ts'
 import { blockedEmailDomain } from '../lib/email-domains.ts'
 import { errorMessage } from '../lib/errors.ts'
@@ -52,6 +56,15 @@ import { config } from '../lib/config.ts'
  * The address is only ever added by step 2, so an address nobody can read mail at
  * can never end up on the list — which matters, because this list is what gets
  * someone back into an account.
+ *
+ * ── Step 1 doesn't reveal which addresses have accounts ────────────────────────
+ * An address already on another account can't be added, but step 1 answers it
+ * exactly as it answers a free one: it is stashed as pending (and so shown as
+ * awaiting confirmation) but no link is mailed, so it can never be confirmed and
+ * simply stops being shown when the pending marker expires. The mail is sent off
+ * the response path for the same reason — waiting on SMTP only for a free address
+ * would make a taken one answer measurably faster. The cost is that a failed send
+ * is only logged; the user sees the usual "check your inbox" and can ask again.
  */
 
 /** Step 1's body: the address being proposed. */
@@ -66,7 +79,7 @@ interface VerifyBody {
 
 export default async function recoveryEmailsRoutes(app: FastifyInstance) {
   const ATTRIBUTE_KEY = RECOVERY_EMAILS_KEY
-  const PENDING_KEY = 'pending_recovery_email'
+  const PENDING_KEY = PENDING_RECOVERY_EMAIL_KEY
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const TTL_SECONDS = 60 * 60 // 1 hour
   const TTL_TEXT = '1 hour'
@@ -112,8 +125,8 @@ export default async function recoveryEmailsRoutes(app: FastifyInstance) {
         emails: readableRecoveryEmails(storedList(full)),
         max: MAX_ADDRESSES,
         // Surfaced so the page can say an address is awaiting confirmation instead
-        // of looking like the request vanished.
-        pending: full.attributes?.[PENDING_KEY] ?? null
+        // of looking like the request vanished — until its link would have expired.
+        pending: livePendingRecoveryEmail(full)
       }
     } catch (err) {
       if (err instanceof AuthentikError) {
@@ -150,14 +163,15 @@ export default async function recoveryEmailsRoutes(app: FastifyInstance) {
       )
     }
 
+    let inUse = false
+    let name = user.name || user.username
     try {
       // Recovery addresses are how an account is identified when its owner has lost
       // the primary address, so two accounts must not answer to the same one. Same
-      // conflict rule as routes/email-change.ts, for the same reason.
+      // conflict rule as routes/email-change.ts, for the same reason — and, like it,
+      // not reported: see "doesn't reveal" in the header.
       const existing = await findUserByEmail(email)
-      if (existing && String(existing.pk) !== String(user.pk)) {
-        return reply.conflict('That email address is already in use by another account.')
-      }
+      inUse = Boolean(existing && String(existing.pk) !== String(user.pk))
 
       const full = await getUser(user.pk, client)
       const stored = storedList(full)
@@ -173,10 +187,24 @@ export default async function recoveryEmailsRoutes(app: FastifyInstance) {
       // Stash the proposed address (attributes is replaced wholesale on PATCH, so
       // read the full object and merge — see patchUser's note). One pending address
       // at a time: proposing another supersedes the first, which is also what makes
-      // the confirmation single-use.
-      const attributes = { ...full.attributes, [PENDING_KEY]: email }
+      // the confirmation single-use. The marker expires with the link, so it stops
+      // being shown once it can no longer be confirmed.
+      const attributes = {
+        ...full.attributes,
+        [PENDING_KEY]: pendingRecoveryEmail(email, TTL_SECONDS)
+      }
       await patchUser(user.pk, { attributes }, client)
+      name = full.name || name
+    } catch (err) {
+      if (err instanceof AuthentikError) {
+        return reply.code(err.status ?? 502).send({ error: err.message })
+      }
+      throw err
+    }
 
+    if (inUse) {
+      request.log.info({ pk: user.pk }, 'recovery-emails: address in use, verification not sent')
+    } else {
       const token = signVerificationToken({
         purpose: PURPOSE_RECOVERY_EMAIL,
         pk: user.pk,
@@ -184,29 +212,25 @@ export default async function recoveryEmailsRoutes(app: FastifyInstance) {
         ttlSeconds: TTL_SECONDS
       })
       const url = `${config.publicAppUrl}/verify-recovery-email?token=${encodeURIComponent(token)}`
-      await sendRecoveryEmailVerification({
+      // Not awaited — see "doesn't reveal" in the header.
+      sendRecoveryEmailVerification({
         to: email,
-        name: full.name || user.name || user.username,
+        name,
         account: user.email || user.username,
         url,
         expiresText: TTL_TEXT
       })
-
-      request.log.info({ pk: user.pk }, 'recovery-emails: verification sent')
-      return { sent: true, email }
-    } catch (err) {
-      if (err instanceof AuthentikError) {
-        return reply.code(err.status ?? 502).send({ error: err.message })
-      }
-      // Mailer / SMTP failures land here — surface a clean 502 rather than a 500.
-      request.log.error(
-        { err: errorMessage(err) },
-        'recovery-emails: could not send verification'
-      )
-      return reply
-        .code(502)
-        .send({ error: 'Could not send the verification email. Please try again.' })
+        .then(() => {
+          request.log.info({ pk: user.pk }, 'recovery-emails: verification sent')
+        })
+        .catch((err: unknown) => {
+          request.log.error(
+            { pk: user.pk, err: errorMessage(err) },
+            'recovery-emails: could not send verification'
+          )
+        })
     }
+    return { sent: true, email }
   })
 
   // Step 2: confirm — add the address if the token is valid and still pending.
@@ -229,7 +253,8 @@ export default async function recoveryEmailsRoutes(app: FastifyInstance) {
       // Single-use / stale guard: the pending address must still match the token.
       // Once applied (or superseded by a newer request), it won't — so replaying an
       // old link can't re-add an address that has since been removed.
-      if (String(full.attributes?.[PENDING_KEY] ?? '').toLowerCase() !== claims.email.toLowerCase()) {
+      // The token's own expiry is what bounds the link, so the marker's isn't checked.
+      if (String(pendingRecoveryEmailAddress(full) ?? '').toLowerCase() !== claims.email.toLowerCase()) {
         return reply.badRequest('This confirmation link has already been used or is no longer valid.')
       }
       // Everything the request step refused has to be refused here too: an hour can

@@ -225,11 +225,13 @@ admin token to write the user. It's two steps:
 1. **Request + send** — the "Change email" form on
    [`profile.vue`](frontend/pages/account/profile.vue) `POST`s the new address to
    `/api/email-change`. The backend resolves the caller from their authentik session
-   cookie (never a browser-sent pk), checks the address isn't already in use, stores
-   it on `attributes.pending_email`, and emails a **signed, time-limited token**
-   (HMAC over `{pk, newEmail, exp}`, keyed by `SESSION_SECRET` — see
-   [`backend/lib/token.ts`](backend/lib/token.ts)) as a link to the **new** address
-   (via [`backend/lib/mailer.ts`](backend/lib/mailer.ts), SMTP).
+   cookie (never a browser-sent pk), stores the address on `attributes.pending_email`,
+   and emails a **signed, time-limited token** (HMAC over `{pk, newEmail, exp}`, keyed
+   by `SESSION_SECRET` — see [`backend/lib/token.ts`](backend/lib/token.ts)) as a link
+   to the **new** address (via [`backend/lib/mailer.ts`](backend/lib/mailer.ts), SMTP).
+   If the address already belongs to another account, no mail is sent but the reply
+   is identical — and the send is never awaited, so response timing doesn't tell the
+   two apart either. The same holds for adding a recovery address.
 2. **Confirm + write** — the link points at `/app/verify-email-change?token=…`, a
    normal app route (no Cloudflare rule needed).
    [`verify-email-change.vue`](frontend/pages/verify-email-change.vue) shows a

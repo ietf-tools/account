@@ -37,6 +37,14 @@ import { config } from '../lib/config.ts'
  *      address still matches (single-use), then write email + username together
  *      (kept identical) and clear the pending marker.
  *
+ * Step 1 doesn't reveal which addresses have accounts: one already on another
+ * account is answered exactly like a free one — stashed as pending, "sent" — but no
+ * link is mailed, so it can never be confirmed (and step 2 re-checks regardless).
+ * The mail goes out off the response path for the same reason: waiting on SMTP
+ * only for a free address would make a taken one answer measurably faster. The
+ * cost is that a failed send is only logged; the user sees the usual "check your
+ * inbox" and can ask again.
+ *
  * We never trust a pk from the browser: the initiating caller is resolved from
  * their authentik session cookie. The confirmation step is authorised by the
  * signed token instead (so the link works even on another device).
@@ -105,18 +113,29 @@ export default async function emailChangeRoutes(app: FastifyInstance) {
       )
     }
 
+    let inUse = false
+    let name = user.name || user.username
     try {
+      // Not reported — see the header.
       const existing = await findUserByEmail(email)
-      if (existing && String(existing.pk) !== String(user.pk)) {
-        return reply.conflict('That email address is already in use.')
-      }
+      inUse = Boolean(existing && String(existing.pk) !== String(user.pk))
 
       // Stash the desired address on the user (attributes is replaced wholesale on
       // PATCH, so read the full object and merge — see patchUser's note).
       const full = await getUser(user.pk, client)
       const attributes = { ...full.attributes, pending_email: email }
       await patchUser(user.pk, { attributes }, client)
+      name = full.name || name
+    } catch (err) {
+      if (err instanceof AuthentikError) {
+        return reply.code(err.status ?? 502).send({ error: err.message })
+      }
+      throw err
+    }
 
+    if (inUse) {
+      request.log.info({ pk: user.pk }, 'email-change: address in use, verification not sent')
+    } else {
       const token = signVerificationToken({
         purpose: PURPOSE_EMAIL_CHANGE,
         pk: user.pk,
@@ -124,23 +143,19 @@ export default async function emailChangeRoutes(app: FastifyInstance) {
         ttlSeconds: TTL_SECONDS
       })
       const url = `${config.publicAppUrl}/verify-email-change?token=${encodeURIComponent(token)}`
-      await sendEmailChangeVerification({
-        to: email,
-        name: full.name || user.name || user.username,
-        url,
-        expiresText: TTL_TEXT
-      })
-
-      request.log.info({ pk: user.pk }, 'email-change: verification sent')
-      return { sent: true, email }
-    } catch (err) {
-      if (err instanceof AuthentikError) {
-        return reply.code(err.status ?? 502).send({ error: err.message })
-      }
-      // Mailer / SMTP failures land here — surface a clean 502 rather than a 500.
-      request.log.error({ err: errorMessage(err) }, 'email-change: could not send verification')
-      return reply.code(502).send({ error: 'Could not send the verification email. Please try again.' })
+      // Not awaited — see the header.
+      sendEmailChangeVerification({ to: email, name, url, expiresText: TTL_TEXT })
+        .then(() => {
+          request.log.info({ pk: user.pk }, 'email-change: verification sent')
+        })
+        .catch((err: unknown) => {
+          request.log.error(
+            { pk: user.pk, err: errorMessage(err) },
+            'email-change: could not send verification'
+          )
+        })
     }
+    return { sent: true, email }
   })
 
   // Step 2: confirm — apply the change if the token is valid and still pending.
