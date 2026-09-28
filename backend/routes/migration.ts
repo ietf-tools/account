@@ -1,32 +1,30 @@
 import type { FastifyInstance } from 'fastify'
 
-import { verifyLegacyCredentials, LegacyError } from '../lib/legacy.ts'
-import type { LegacyProfile } from '../lib/legacy.ts'
 import {
-  findUserByEmail,
-  findUserByUsername,
-  createUser,
-  setUserPassword,
-  AuthentikError
-} from '../lib/authentik.ts'
+  verifyDatatrackerCredentials,
+  DatatrackerMigrationError
+} from '../lib/datatracker-migration.ts'
+import type { DatatrackerPerson } from '../lib/datatracker-migration.ts'
+import { findUserByEmail, createUser, setUserPassword, AuthentikError } from '../lib/authentik.ts'
 import type { AuthentikUser } from '../lib/authentik.ts'
 
 /**
  * Legacy account migration — logic that deliberately lives in the backend.
  *
- * A user who existed in the old Django system enters their old credentials.
- * We verify them against the legacy system, and on success mint the equivalent
- * account in authentik (carrying over profile + a `migrated_from` marker) using
- * the service-account API token. The user keeps the same password unless they
- * choose a new one, and can immediately sign in through the normal flow.
+ * A user who existed in the old Datatracker system enters their old credentials.
+ * We prove them against Datatracker's migration API (which needs an API key, and
+ * a password sealed to Datatracker's public key — neither of which the browser
+ * can hold), and on success mint the equivalent account in authentik using the
+ * service-account API token. The user keeps the same password unless they choose
+ * a new one, and can immediately sign in through the normal flow.
  *
  * This runs as two steps:
- *   1. POST /migrate/validate — verify the legacy credentials and return the
- *      emails associated with the account. The verified profile (and password,
- *      needed to carry the credential over) is stashed server-side in the
- *      session for the completion step.
- *   2. POST /migrate — the user picks which of their emails to use for the new
- *      authentik account and optionally sets a new password; we create it.
+ *   1. POST /migration/validate — prove the Datatracker credentials and return
+ *      the Person behind them (their addresses and profile). The verified Person
+ *      (and the password, needed to carry the credential over) is stashed
+ *      server-side in the session for the completion step.
+ *   2. POST /migration/migrate — the user picks which of their emails to use for
+ *      the new authentik account and optionally sets a new password; we create it.
  *
  * Nothing here is exposed to admins — it is purely a self-service path for
  * public users crossing over from the old system.
@@ -34,17 +32,17 @@ import type { AuthentikUser } from '../lib/authentik.ts'
 
 /**
  * The two-step handoff this route needs to remember between /validate and
- * /migrate: the profile the legacy system vouched for, plus the password it was
- * proved with (so the browser never has to re-send the credential). It is the
- * only thing in the backend's in-memory session — see backend/index.ts.
+ * /migrate: the Person Datatracker vouched for, plus the password it was proved
+ * with (so the browser never has to re-send the credential). It is the only
+ * thing in the backend's in-memory session — see backend/index.ts.
  */
 declare module 'fastify' {
   interface Session {
-    migration?: { legacy: LegacyProfile; password: string } | null
+    migration?: { person: DatatrackerPerson; password: string } | null
   }
 }
 
-/** Step 1's body: the credentials to prove against the legacy system. */
+/** Step 1's body: the credentials to prove against Datatracker. */
 interface ValidateBody {
   identifier?: string
   password?: string
@@ -69,8 +67,8 @@ export default async function migrationRoutes(app: FastifyInstance) {
     return null
   }
 
-  // Step 1: prove ownership against the legacy system and surface the account's
-  // emails for the user to choose from.
+  // Step 1: prove ownership against Datatracker and surface the account's
+  // addresses and profile for the user to choose from.
   app.post<{ Body: ValidateBody }>('/validate', async (request, reply) => {
     const { identifier, password } = request.body ?? {}
     if (!identifier || !password) {
@@ -78,29 +76,52 @@ export default async function migrationRoutes(app: FastifyInstance) {
     }
 
     try {
-      const legacy = await verifyLegacyCredentials(identifier, password)
-      if (!legacy) {
-        return reply.unauthorized('Those legacy credentials were not recognised')
+      const person = await verifyDatatrackerCredentials(identifier, password)
+      if (!person) {
+        return reply.unauthorized('Those Datatracker credentials were not recognised')
       }
-      if (!legacy.emails.length) {
+      // Datatracker already knows this Person has an account over here, so the
+      // migration is done — whatever else we'd find, this is the honest answer.
+      if (person.already_linked) {
+        return reply.conflict('This account has already been migrated — please sign in')
+      }
+
+      const addresses = person.emails.map((email) => email.address)
+      if (!addresses.length) {
         return reply.badRequest('No email addresses are associated with this account')
       }
 
       // Don't double-migrate — send already-migrated users to sign in.
-      const existing =
-        (legacy.username ? await findUserByUsername(legacy.username) : null) ??
-        (await firstMigratedEmail(legacy.emails))
+      const existing = await firstMigratedEmail(addresses)
       if (existing) {
         return reply.conflict('This account has already been migrated — please sign in')
       }
 
-      // Stash the verified profile + password for the completion step so the
+      // Stash the verified Person + password for the completion step so the
       // browser never has to re-send the credential.
-      request.session.migration = { legacy, password }
+      request.session.migration = { person, password }
 
-      return { emails: legacy.emails, username: legacy.username }
+      // Person-scoped, minus `legacy_sub`: the browser has no use for the old
+      // subject, and step 2 reads it from the session.
+      return {
+        person_uuid: person.person_uuid,
+        name: person.name,
+        emails: person.emails,
+        pronouns: person.pronouns,
+        github_username: person.github_username,
+        portrait_url: person.portrait_url,
+        last_login: person.last_login
+      }
     } catch (err) {
-      if (err instanceof LegacyError || err instanceof AuthentikError) {
+      if (err instanceof DatatrackerMigrationError) {
+        // A key mismatch or a rejected API key is our problem, not the user's —
+        // log it loudly, because on screen it is indistinguishable from an outage.
+        request.log.error({ err, code: err.code }, 'Datatracker migration verify failed')
+        return reply
+          .code(err.status)
+          .send({ error: 'We could not reach Datatracker to check those credentials. Please try again later.' })
+      }
+      if (err instanceof AuthentikError) {
         return reply.code(err.status ?? 502).send({ error: err.message })
       }
       throw err
@@ -108,6 +129,11 @@ export default async function migrationRoutes(app: FastifyInstance) {
   })
 
   // Step 2: create the authentik account using the chosen email.
+  //
+  // TODO: still the placeholder completion path — it mints the account from the
+  // verified Person, but does not yet claim the address with Datatracker or
+  // write the link back (its claim-email/ and link/ endpoints). Only /validate
+  // above talks to the real migration API so far.
   app.post<{ Body: MigrateBody }>('/migrate', async (request, reply) => {
     const { email, newPassword } = request.body ?? {}
     const pending = request.session.migration
@@ -115,27 +141,34 @@ export default async function migrationRoutes(app: FastifyInstance) {
       return reply.badRequest('Please validate your credentials first')
     }
 
-    const { legacy, password } = pending
-    if (!email || !legacy.emails.includes(email)) {
+    const { person, password } = pending
+    const owned = person.emails.some((address) => address.address === email)
+    if (!email || !owned) {
       return reply.badRequest('Please choose one of your account emails')
     }
 
     try {
       // Guard against a race where the account got migrated in the meantime.
-      const existing =
-        (await findUserByEmail(email)) ??
-        (legacy.username ? await findUserByUsername(legacy.username) : null)
+      const existing = await findUserByEmail(email)
       if (existing) {
         request.session.migration = null
         return reply.conflict('This account has already been migrated — please sign in')
       }
 
-      // Recreate the account in authentik and set the password.
+      // Recreate the account in authentik and set the password. The migration
+      // API is Person-scoped and never reveals the Datatracker username, so the
+      // chosen address is the new account's username too — the same rule manual
+      // enrollment follows (ietf-enrollment-set-username-from-email).
       const created = await createUser({
-        username: legacy.username,
+        username: email,
         email,
-        name: legacy.name,
-        attributes: legacy.attributes
+        name: person.name.full,
+        attributes: {
+          datatracker: {
+            person_uuid: person.person_uuid,
+            legacy_sub: person.legacy_sub
+          }
+        }
       })
       await setUserPassword(created.pk, newPassword || password)
 
@@ -147,7 +180,7 @@ export default async function migrationRoutes(app: FastifyInstance) {
         email: created.email
       }
     } catch (err) {
-      if (err instanceof LegacyError || err instanceof AuthentikError) {
+      if (err instanceof AuthentikError) {
         return reply.code(err.status ?? 502).send({ error: err.message })
       }
       throw err

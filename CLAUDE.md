@@ -37,7 +37,7 @@ backend/
   lib/config.ts       Env config (throws on missing SESSION_SECRET / AUTHENTIK_URL)
   lib/attributes.ts   Narrowing the free-form JSON in user `attributes` (it's all `unknown`)
   lib/errors.ts       errorMessage(): reading a message off a caught `unknown`
-  lib/legacy.ts       Legacy Django client (migration only)
+  lib/datatracker-migration.ts  Datatracker migration API client (migration only)
   routes/migration.ts Legacy → authentik account migration (the only auth-ish backend route)
 frontend/
   components/FlowExecutor.vue  Dynamic authentik challenge renderer (the core UI)

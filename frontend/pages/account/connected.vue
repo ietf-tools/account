@@ -31,6 +31,11 @@ const {
   load: loadDatatracker
 } = useDatatrackerLink()
 
+// Same gate as the sign-in page's entry point (pages/login.vue): the migration
+// isn't open to the public yet, so production badges it "coming soon" and leaves
+// the button inert, while dev keeps it live so the flow stays testable.
+const migrateEnabled = import.meta.dev
+
 const disconnecting = ref(null)
 // Two-step confirm so a destructive click can't unlink a sign-in method by
 // accident — holds the connectionPk of the service awaiting confirmation, or
@@ -402,11 +407,19 @@ onMounted(async () => {
       <div class="mt-4 flex justify-end">
         <button
           type="button"
-          class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300
+          :disabled="!migrateEnabled"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300
             bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition
-            hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+            enabled:hover:border-sky-300 enabled:hover:bg-sky-50 enabled:hover:text-sky-700
+            disabled:cursor-default"
         >
           Migrate Datatracker Account
+          <span
+            v-if="!migrateEnabled"
+            class="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-rose-700"
+          >
+            Coming soon
+          </span>
         </button>
       </div>
     </section>

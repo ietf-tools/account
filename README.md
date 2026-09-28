@@ -47,7 +47,7 @@ path** — it exists only for custom features that need the admin API token
   [`frontend/composables/useAuthentik.js`](frontend/composables/useAuthentik.js).
 - **Custom backend logic** (e.g. legacy migration) lives in dedicated routes and
   libs, not in authentik. See [`backend/routes/migration.ts`](backend/routes/migration.ts)
-  and [`backend/lib/legacy.ts`](backend/lib/legacy.ts).
+  and [`backend/lib/datatracker-migration.ts`](backend/lib/datatracker-migration.ts).
 
 ### How a login works
 
@@ -263,7 +263,7 @@ backend/                (only for features that need the admin token — not aut
     authentik.ts        Admin client (service-account token) + the AuthentikUser shape
     attributes.ts       Narrowing the free-form JSON in user `attributes`
     errors.ts           errorMessage(): reading a message off a caught `unknown`
-    legacy.ts           Legacy Django client (migration only) — swap for your transport
+    datatracker-migration.ts  Datatracker migration API client (migration only)
   routes/
     migration.ts        Legacy → authentik account migration (the only auth-ish route)
     health.ts
@@ -322,7 +322,7 @@ All config is environment-driven — see [`.env.sample`](.env.sample). Key value
 | `AUTHENTIK_API_TOKEN` | Service-account token, used **only** for the migration flow |
 | `AUTHENTIK_FLOW_*` | Slugs for the authentication / enrollment / recovery flows |
 | `SESSION_SECRET` | Signs the session cookie |
-| `LEGACY_API_URL` / `LEGACY_API_TOKEN` | Legacy Django system, for migration |
+| `DATATRACKER_MIGRATION_API_ENDPOINT` / `_API_TOKEN` / `_PUBLIC_KEY` | Datatracker's migration API, for migration |
 
 The `AUTHENTIK_FLOW_*` slugs default to ietf's custom flows
 (`ietf-login`, etc.). Point them at your brand's configured
@@ -338,12 +338,15 @@ The custom, backend-only flow for users crossing over from the old Django system
 (see [`backend/routes/migration.ts`](backend/routes/migration.ts)):
 
 1. User submits their **old** credentials at `/migrate`.
-2. Backend verifies them against the legacy system
-   ([`verifyLegacyCredentials`](backend/lib/legacy.ts) — adapt this to your
-   legacy transport: HTTP, direct DB, LDAP…).
+2. Backend proves them against Datatracker's migration API
+   ([`verifyDatatrackerCredentials`](backend/lib/datatracker-migration.ts)),
+   sending the password sealed to Datatracker's public key (RSA-OAEP, SHA-256
+   for both the digest and MGF1, no label, base64) under an `X-Api-Key` header.
+   Datatracker answers with the **Person** behind the credentials — their
+   addresses and profile, no username and no password material.
 3. On success, the backend creates the equivalent authentik user (via the admin
-   token), carrying over the profile and a `migrated_from: django` attribute,
-   and sets the password.
+   token), carrying over the name and the Datatracker `person_uuid` /
+   `legacy_sub`, and sets the password.
 4. The user signs in normally.
 
 ## Production build & deploy

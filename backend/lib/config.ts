@@ -96,9 +96,16 @@ export const config = {
     from: process.env.SMTP_FROM ?? 'IETF Account <noreply@ietf.org>'
   },
 
-  legacy: {
-    apiUrl: process.env.LEGACY_API_URL ?? '',
-    apiToken: process.env.LEGACY_API_TOKEN ?? ''
+  // Datatracker's account-migration API — how /migrate proves a person's existing
+  // Datatracker password before we build them an account here (see
+  // lib/datatracker-migration.ts). The public key is the one the password is
+  // sealed to; it is Datatracker's, so only Datatracker can open the envelope.
+  // A PEM carried in an env var is usually written with escaped newlines, so
+  // accept that spelling as well as a genuinely multi-line value.
+  datatrackerMigration: {
+    endpoint: process.env.DATATRACKER_MIGRATION_API_ENDPOINT ?? '',
+    apiToken: process.env.DATATRACKER_MIGRATION_API_TOKEN ?? '',
+    publicKey: (process.env.DATATRACKER_MIGRATION_PUBLIC_KEY ?? '').replace(/\\n/g, '\n').trim()
   },
 
   // S3-compatible object storage for uploaded avatars. Optional: only the avatar

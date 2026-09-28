@@ -1,17 +1,25 @@
 <script setup>
 // Custom, backend-driven flow (not an authentik flow): verify the user against
-// the legacy Django system, then recreate their account in authentik.
+// the legacy Datatracker system, then recreate their account in authentik.
 //
 // Two steps:
-//   1. Validate the legacy credentials — the backend returns the emails
-//      associated with the account.
+//   1. Validate the Datatracker credentials — the backend proves them against
+//      Datatracker's migration API and returns the Person behind them (their
+//      addresses and profile).
 //   2. Pick which email to use for the new account, optionally set a new
 //      password, and complete the migration.
 const api = useApi()
 
 const step = ref(1)
 const form = reactive({ identifier: '', password: '', selectedEmail: '', newPassword: '' })
+// Every address Datatracker reports for the Person — `{ address, primary, active }`,
+// primary first. Inactive ones are included (they're claimable), but only the
+// active ones are offered as the new account's email for now.
 const emails = ref([])
+const selectableEmails = computed(() => {
+  const active = emails.value.filter((email) => email.active)
+  return (active.length ? active : emails.value).map((email) => email.address)
+})
 const loading = ref(false)
 const error = ref(null)
 const done = ref(false)
@@ -60,8 +68,8 @@ async function onValidate() {
       method: 'POST',
       body: { identifier: form.identifier, password: form.password }
     })
-    emails.value = res.emails
-    form.selectedEmail = res.emails[0] ?? ''
+    emails.value = Array.isArray(res.emails) ? res.emails : []
+    form.selectedEmail = selectableEmails.value[0] ?? ''
     step.value = 2
     nextTick(() => step2Input.value?.focus())
   } catch (e) {
@@ -133,12 +141,12 @@ function backToCredentials() {
       <div>
         <label class="field-label">Account email</label>
         <select
-          v-if="emails.length > 1"
+          v-if="selectableEmails.length > 1"
           ref="step2Input"
           v-model="form.selectedEmail"
           class="field-input"
         >
-          <option v-for="email in emails" :key="email" :value="email">{{ email }}</option>
+          <option v-for="email in selectableEmails" :key="email" :value="email">{{ email }}</option>
         </select>
         <p v-else class="text-sm text-slate-900">{{ form.selectedEmail }}</p>
         <p class="mt-1 text-xs text-slate-400">This email will be used for your new account.</p>
@@ -146,7 +154,7 @@ function backToCredentials() {
       <div>
         <label class="field-label">New Password <span class="text-slate-400">(optional)</span></label>
         <input
-          :ref="emails.length > 1 ? undefined : 'step2Input'"
+          :ref="selectableEmails.length > 1 ? undefined : 'step2Input'"
           v-model="form.newPassword"
           type="password"
           class="field-input"
