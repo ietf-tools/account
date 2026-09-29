@@ -19,6 +19,20 @@
 // didn't authenticate.
 //
 // No auth middleware: the account is being confirmed, not yet signed in.
+//
+// Rule 8 matches the path, so it also catches a plain link to authentik's sign-up
+// page (/if/flow/ietf-enrollment/, what third-party apps link as "Create an
+// account"). Without the email's `flow_token` there's nothing to confirm — hand it
+// to /register, keeping the querystring (`next`), which also deals with a visitor
+// who's already signed in.
+definePageMeta({
+  middleware: (to) => {
+    if (!to.query.flow_token) {
+      return navigateTo({ path: '/register', query: to.query }, { replace: true })
+    }
+  }
+})
+
 const auth = useAuthStore()
 const router = useRouter()
 

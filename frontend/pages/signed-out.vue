@@ -18,18 +18,22 @@
 // the account shell's own "Sign out" passes it (a deliberate in-app action needs
 // no "you've been signed out" interstitial), while the provider "sign out entirely"
 // button and direct /if/flow/ietf-invalidation/ hits omit it and see the message.
+// `?redirect=register` does the same into sign-up (AlreadySignedIn's "Sign out and
+// create a new account"). Only these keys — never a URL — so it can't be steered off-site.
+const REDIRECTS = { login: '/login', register: '/register' }
+
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const straightToLogin = computed(() => route.query.redirect === 'login')
+const redirectPath = computed(() => REDIRECTS[route.query.redirect] ?? null)
 
 function onDone() {
   // Whoever the executor resolved on completion is now anonymous — clear the
   // local record so the app (and its route guard) sees us as signed out.
   auth.setUser(null)
-  if (straightToLogin.value) {
-    router.push('/login')
+  if (redirectPath.value) {
+    router.push(redirectPath.value)
   }
 }
 </script>
@@ -37,7 +41,7 @@ function onDone() {
 <template>
   <FlowExecutor kind="invalidation" title="Sign out" @complete="onDone">
     <template #complete>
-      <template v-if="straightToLogin">
+      <template v-if="redirectPath">
         <p>Signing you out — redirecting…</p>
       </template>
       <template v-else>

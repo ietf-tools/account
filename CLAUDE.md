@@ -159,6 +159,13 @@ fresh cookie jar per `begin`.)
   pushing an unauthenticated browser at a guarded route makes the middleware bounce it to `/login`,
   and when that IS the current route Vue Router silently drops the navigation — a dead end with no
   error on screen.
+- **Enrollment is `require_unauthenticated` — don't start it with a session.** authentik answers
+  a signed-in browser with a bare "Flow does not apply to current user.", so
+  [register.vue](frontend/pages/register.vue) renders [AlreadySignedIn.vue](frontend/components/AlreadySignedIn.vue)
+  instead (Continue → same-origin `next` or the account; or sign out → `/signed-out?redirect=register`).
+  Third-party "Create an account" links hit `/if/flow/ietf-enrollment/`, which the email-confirmation
+  edge rule sends to [verify-email.vue](frontend/pages/verify-email.vue); without a `flow_token` it
+  forwards to `/register`. (With a token, authentik restores the plan and skips that check.)
 - **`autofocus` does not fire** on SPA navigation or Vue stage swaps. Focus programmatically instead —
   FlowExecutor focuses the first field on every `challenge` change (`focusFirstField` + `formEl` ref);
   migrate.vue focuses on mount via a ref. Follow this pattern for new focusable steps.

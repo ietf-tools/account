@@ -179,6 +179,18 @@ signed-in area (falling back to sign-in if the flow didn't authenticate).
 > [`FlowExecutor.vue`](frontend/components/FlowExecutor.vue) — an unhandled stage
 > still renders a labelled fallback rather than dead-ending.
 
+Rule 8 matches the path only, so it also catches a plain link to authentik's
+sign-up page, which is what third-party apps use for "Create an account".
+`verify-email.vue` hands any hit without a `flow_token` on to `/register`, keeping
+the querystring. The enrollment flow is `require_unauthenticated`, so a visitor who
+is already signed in would otherwise get authentik's bare "Flow does not apply to
+current user." Instead, `register.vue` shows
+[`AlreadySignedIn.vue`](frontend/components/AlreadySignedIn.vue) and never starts
+the flow. That card offers **Continue**, which follows a same-origin `next` (so an
+app linking `?next=/application/o/authorize/?client_id=…` gets the user signed in
+to it) or goes to the account, and **Sign out and create a new account**, which
+goes to `/signed-out?redirect=register`.
+
 ### Password reset (forgot password)
 
 The "forgot password" flow (`ietf-recovery`) starts on [`recover.vue`](frontend/pages/recover.vue),
