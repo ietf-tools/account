@@ -186,10 +186,13 @@ the querystring. The enrollment flow is `require_unauthenticated`, so a visitor 
 is already signed in would otherwise get authentik's bare "Flow does not apply to
 current user." Instead, `register.vue` shows
 [`AlreadySignedIn.vue`](frontend/components/AlreadySignedIn.vue) and never starts
-the flow. That card offers **Continue**, which follows a same-origin `next` (so an
-app linking `?next=/application/o/authorize/?client_id=…` gets the user signed in
-to it) or goes to the account, and **Sign out and create a new account**, which
-goes to `/signed-out?redirect=register`.
+the flow. That card offers **Continue**, which follows a same-origin `next` or goes
+to the account, and **Sign out and create a new account**, which goes to
+`/signed-out?redirect=register`. An app whose sign-up link carries its own
+authorize request as `next` gets the user signed in to it in one click. That
+request is a whole URL with its own querystring, so it must be URL-encoded as the
+value, e.g. `?next=%2Fapplication%2Fo%2Fauthorize%2F%3Fclient_id%3D…%26redirect_uri%3D…`
+(built per request by the app, since it carries `state`/PKCE).
 
 ### Password reset (forgot password)
 
