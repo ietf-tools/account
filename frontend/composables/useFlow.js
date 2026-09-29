@@ -108,6 +108,18 @@ export function useFlow(kind, options = {}) {
       redirectTo.value = next.to ?? null
       user.value = resolved
     }
+    if (next?.component === 'ak-stage-session-end') {
+      // The session-end screen is never POSTed (its options are plain navigations),
+      // so its plan would otherwise sit in authentik's session indefinitely — and
+      // EndSessionView answers *any* end-session request made while a plan is in the
+      // session with a bare, empty 200 (its front-channel iframe guard). The next
+      // app logout would land on a blank page. We already hold the challenge, so
+      // release the plan before showing it.
+      await reset()
+      if (stale(mine)) {
+        return snapshot()
+      }
+    }
     challenge.value = withSources(next)
     complete.value = done
     return snapshot()

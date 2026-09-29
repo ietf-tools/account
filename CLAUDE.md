@@ -159,6 +159,14 @@ fresh cookie jar per `begin`.)
   pushing an unauthenticated browser at a guarded route makes the middleware bounce it to `/login`,
   and when that IS the current route Vue Router silently drops the navigation — a dead end with no
   error on screen.
+- **Never leave a flow plan parked in authentik's session.** authentik's OIDC `EndSessionView`
+  (`/application/o/<app>/end-session/`) returns a bare, empty `200` whenever *any* plan is in the
+  session (a guard for front-channel logout iframes) — so an app's logout lands on a blank page. The
+  app's own leaks were the session-end screen (never POSTed; [useFlow.js](frontend/composables/useFlow.js)
+  now cancels the plan as soon as it arrives) and the Profile/Password forms, which GET a prompt flow
+  to render and may never submit ([useProfile.js](frontend/composables/useProfile.js) /
+  [usePassword.js](frontend/composables/usePassword.js) now release the plan after every request and
+  re-plan on save). Any new "read a flow to render a form" feature must do the same.
 - **Enrollment is `require_unauthenticated` — don't start it with a session.** authentik answers
   a signed-in browser with a bare "Flow does not apply to current user.", so
   [register.vue](frontend/pages/register.vue) renders [AlreadySignedIn.vue](frontend/components/AlreadySignedIn.vue)

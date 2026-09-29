@@ -76,9 +76,30 @@ export function useProfile() {
     return 'other'
   }
 
+  // Never leave this flow's plan in authentik's session between requests. The form
+  // can sit open indefinitely (or be abandoned), and while ANY plan is in the
+  // session authentik's EndSessionView answers an app's OIDC logout
+  // (/application/o/<app>/end-session/) with a bare, empty 200 — a blank page.
+  // So read the prompt and release the plan; on save, re-plan, submit, release.
   async function fetchForm() {
     await reset()
-    return applyChallenge(await ak(executorUrl, { method: 'GET' }))
+    try {
+      return applyChallenge(await ak(executorUrl, { method: 'GET' }))
+    } finally {
+      await reset()
+    }
+  }
+
+  async function submitForm() {
+    await reset()
+    try {
+      // Re-plan up to the prompt stage; the challenge itself was already read by
+      // fetchForm, and applying it again would overwrite the user's edits.
+      await ak(executorUrl, { method: 'GET' })
+      return applyChallenge(await ak(executorUrl, { method: 'POST', body: { ...values } }))
+    } finally {
+      await reset()
+    }
   }
 
   // Dev-only placeholder form (see useApplications for why). Never in production.
@@ -140,7 +161,7 @@ export function useProfile() {
         saved.value = true
         return
       }
-      const kind = applyChallenge(await ak(executorUrl, { method: 'POST', body: { ...values } }))
+      const kind = await submitForm()
       if (kind === 'complete') {
         // Name/email may have changed — refresh identity (updates the sidebar),
         // then re-present the form with the new values.

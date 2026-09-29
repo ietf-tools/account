@@ -55,9 +55,27 @@ export function usePassword() {
     return 'other'
   }
 
+  // Hold this flow's plan only for the duration of a request — a plan left in the
+  // session blanks an app's OIDC logout (see useProfile's fetchForm).
   async function fetchForm() {
     await reset()
-    return applyChallenge(await ak(executorUrl, { method: 'GET' }))
+    try {
+      return applyChallenge(await ak(executorUrl, { method: 'GET' }))
+    } finally {
+      await reset()
+    }
+  }
+
+  async function submitForm() {
+    await reset()
+    try {
+      // Re-plan up to the prompt stage without re-applying it (that would clear
+      // what the user typed), then submit.
+      await ak(executorUrl, { method: 'GET' })
+      return applyChallenge(await ak(executorUrl, { method: 'POST', body: { ...values } }))
+    } finally {
+      await reset()
+    }
   }
 
   // Dev-only placeholder form (see useApplications for why). Never in production.
@@ -113,7 +131,7 @@ export function usePassword() {
         saved.value = true
         return
       }
-      const kind = applyChallenge(await ak(executorUrl, { method: 'POST', body: { ...values } }))
+      const kind = await submitForm()
       if (kind === 'complete') {
         // Re-present a fresh (blank) prompt so the password fields clear.
         await fetchForm().catch(() => {})
