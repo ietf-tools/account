@@ -5,7 +5,7 @@ import {
   DatatrackerMigrationError
 } from '../lib/datatracker-migration.ts'
 import type { DatatrackerPerson } from '../lib/datatracker-migration.ts'
-import { findUserByEmail, createUser, setUserPassword, AuthentikError } from '../lib/authentik.ts'
+import { findUserByUsername, createUser, setUserPassword, AuthentikError } from '../lib/authentik.ts'
 import type { AuthentikUser } from '../lib/authentik.ts'
 
 /**
@@ -54,12 +54,20 @@ interface MigrateBody {
   newPassword?: string
 }
 
+// An account's username is its sign-up address lower-cased — the same rule as
+// enrollment's ietf-enrollment-set-username-from-email policy.
+function usernameForEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
 export default async function migrationRoutes(app: FastifyInstance) {
   // Return the first of the given emails that already exists in authentik, if
-  // any — used to detect an account that has already been migrated.
+  // any — used to detect an account that has already been migrated. Matched on
+  // the username (the address lower-cased) rather than the email, which keeps
+  // whatever casing it was entered with, so the match ignores case.
   async function firstMigratedEmail(emails: string[]): Promise<AuthentikUser | null> {
     for (const email of emails) {
-      const user = await findUserByEmail(email)
+      const user = await findUserByUsername(usernameForEmail(email))
       if (user) {
         return user
       }
@@ -147,9 +155,11 @@ export default async function migrationRoutes(app: FastifyInstance) {
       return reply.badRequest('Please choose one of your account emails')
     }
 
+    const username = usernameForEmail(email)
+
     try {
       // Guard against a race where the account got migrated in the meantime.
-      const existing = await findUserByEmail(email)
+      const existing = await findUserByUsername(username)
       if (existing) {
         request.session.migration = null
         return reply.conflict('This account has already been migrated — please sign in')
@@ -157,10 +167,11 @@ export default async function migrationRoutes(app: FastifyInstance) {
 
       // Recreate the account in authentik and set the password. The migration
       // API is Person-scoped and never reveals the Datatracker username, so the
-      // chosen address is the new account's username too — the same rule manual
-      // enrollment follows (ietf-enrollment-set-username-from-email).
+      // chosen address is the new account's username too (lower-cased; the email
+      // keeps Datatracker's casing) — the same rule enrollment follows
+      // (ietf-enrollment-set-username-from-email).
       const created = await createUser({
-        username: email,
+        username,
         email,
         name: person.name.full,
         attributes: {

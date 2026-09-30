@@ -78,11 +78,18 @@ entries:
   state: present
 - attrs:
     execution_logging: false
-    expression: 'email = request.context["prompt_data"]["email"]
+    expression: |
+      prompt_data = request.context["prompt_data"]
 
-      request.context["prompt_data"]["username"] = email
+      # The username is the address lower-cased; the email keeps the casing the user
+      # entered (or the source supplied). The username is the case-stable key: the
+      # app backend looks accounts up by it (findUserByUsername) wherever it has to
+      # match an address regardless of how it was typed, e.g. legacy migration.
+      email = prompt_data["email"].strip()
+      prompt_data["email"] = email
+      prompt_data["username"] = email.lower()
 
-      return True'
+      return True
     name: ietf-enrollment-set-username-from-email
   conditions: []
   identifiers:

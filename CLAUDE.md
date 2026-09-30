@@ -131,6 +131,13 @@ fresh cookie jar per `begin`.)
   `attributes.avatar` is *always* a URL — see [backend/routes/avatar.ts](backend/routes/avatar.ts)).
   Same `attributes.…`-into-`prompt_data` mechanism as the note-well recorder above; like it, the
   policy must return `True` unconditionally, or the write stage is skipped and no account is created.
+- **The username is the sign-up address lower-cased; the email keeps its entered casing.** Both
+  enrollment flows set it in `ietf-enrollment-set-username-from-email` (user write binding, order 0),
+  and [migration.ts](backend/routes/migration.ts) does the same before `createUser` (`usernameForEmail`).
+  Sign-in doesn't depend on it (the identification stages set `case_insensitive_matching`), but to
+  match an address regardless of case, look the account up by username (`findUserByUsername` on the
+  lower-cased address), not `findUserByEmail`: the email is stored as typed. Any new
+  account-creation path must follow the same rule.
 - **"Stay signed in" (`ak-stage-user-login`) is coupled to server config.** The user login stage runs
   headlessly *unless* its `remember_me_offset` is non-zero, in which case it emits a challenge that
   **requires** a `remember_me` boolean back (session then lasts `session_duration + remember_me_offset`;
