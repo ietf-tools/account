@@ -30,6 +30,7 @@ export interface AuthentikUser {
   name?: string
   email?: string
   avatar?: string
+  is_active?: boolean
   attributes?: Attributes
   [key: string]: unknown
 }

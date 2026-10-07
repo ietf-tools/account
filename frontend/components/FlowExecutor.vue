@@ -221,6 +221,18 @@ const NO_SUBMIT_STAGES = new Set([
   'ak-stage-captcha',
   'ak-stage-user-login'
 ])
+// authentik fills a bare `stage_invalid()` (no reason given — e.g. a Deny stage with
+// no message) with the literal "Unknown error". Say something a person can act on.
+// Known causes get a specific reason server-side instead, e.g. inactive accounts via
+// the Deny stages in authentik/ietf-flows/ietf-account-status.yaml.
+const accessDeniedMessage = computed(() => {
+  const message = challenge.value?.error_message
+  if (!message || message === 'Unknown error') {
+    return "We couldn't sign you in to this account. Try again, or contact support@ietf.org if this keeps happening."
+  }
+  return message
+})
+
 const showSubmit = computed(() => {
   if (NO_SUBMIT_STAGES.has(component.value)) {
     return false
@@ -441,7 +453,7 @@ function validatePrompt() {
     // The sign-up form's email field — the only email prompt either enrollment flow
     // carries (user settings lost its email field to the verified change flow). Same
     // deal as the checkbox above: the gate is a validation policy on the stage in
-    // authentik (authentik/ietf-flows/ietf-blocked-email-domains.yaml), which is what
+    // authentik (`ietf-enrollment-allow-email-domain`, authentik/ietf-flows/), which is what
     // catches a social sign-up too since that flow has no field to type into; this
     // just says so inline rather than after a round-trip.
     if (field.type === 'email' || field.field_key === 'email') {
@@ -1040,7 +1052,7 @@ function signOutEntirely() {
               d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
             />
           </svg>
-          <p class="text-sm text-red-700">{{ challenge.error_message || 'Access denied.' }}</p>
+          <p class="text-sm text-red-700">{{ accessDeniedMessage }}</p>
         </div>
       </template>
 

@@ -56,15 +56,15 @@ entries:
   state: present
 - attrs:
     field_key: attributes.nickname
-    initial_value: ''
-    initial_value_expression: false
+    initial_value: return request.user.attributes.get("nickname", "")
+    initial_value_expression: true
     label: Nickname
     name: ietf-user-settings-field-nickname
     order: 210
     placeholder: e.g. Bob
     placeholder_expression: false
     required: false
-    sub_text: An optional short nickname to be used on some applications in lieu of
+    sub_text: An optional short nickname to be used in some applications in lieu of
       the full name.
     type: text
   conditions: []
@@ -154,5 +154,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-08-07 19:58:58.367530+00:00
+  name: authentik Export - 2026-10-07 01:18:11.787290+00:00
 version: 1

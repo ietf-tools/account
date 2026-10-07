@@ -90,7 +90,7 @@ const flows = {
 // setting drives both. What ships to the browser is only the inline check that
 // tells a user before they submit; the gates are authentik's enrollment policy
 // (registration, which never touches our backend) and the backend routes.
-const blockedEmailDomains = (process.env.BLOCKED_EMAIL_DOMAINS ?? 'ietf.org')
+const blockedEmailDomains = (process.env.BLOCKED_EMAIL_DOMAINS ?? 'ietf.org,rfc-editor.org')
   .split(/[,\s]+/)
   .map((entry) => entry.trim().toLowerCase().replace(/^@+/, '').replace(/\.+$/, ''))
   .filter(Boolean)

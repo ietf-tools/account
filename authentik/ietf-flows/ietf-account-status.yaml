@@ -1,0 +1,297 @@
+---
+# Telling an account that is *not activated yet* apart from one that has been
+# *deactivated* (banned), and keeping a deactivated account deactivated.
+#
+# Like ietf-enrollment-account-defaults.yaml, this is NOT an export of live
+# config — it's a hand-written blueprint you apply on top of the exported flows
+# (or copy into the admin UI by hand). It references their stages and bindings
+# by pk.
+#
+# The problem: authentik has one switch, `is_active`. Manual sign-up creates the
+# account inactive until the confirmation link is clicked; an admin deactivating
+# an account flips the same switch. Nothing records which it was, so:
+#   * a deactivated user returning from Google/GitHub/Apple hit the user login
+#     stage's bare `stage_invalid()`, which authentik renders as "Unknown error";
+#   * the recovery flow's email stage has `activate_user_on_success: true` (so a
+#     reset doubles as "resend my confirmation link"), which equally reactivated
+#     a deactivated account.
+#
+# The marker: manual enrollment stamps `attributes.pending_verification = true`,
+# and it is removed as soon as the account is activated through a flow
+# (confirmation link, or a password reset). So:
+#   inactive + marker (and never signed in)  → not activated yet
+#   inactive, anything else                  → deactivated
+# This fails closed: deactivating an account in the admin UI needs no extra step
+# to count as a ban. The `last_login` check is belt and braces — an account that
+# has ever signed in was activated at some point, whatever its attributes say.
+#
+# Social enrollment creates accounts active, so it never sets the marker.
+# Accounts migrated by the backend (routes/migration.ts) are created active too.
+#
+# Rules shared with the other attribute-writing policies here:
+#   * a policy on a stage binding that only mutates must return True — False
+#     *skips* the stage;
+#   * the Deny stages are gated by a policy that answers "deny?" (True = deny),
+#     the same way as ietf-github-signin-disabled on ietf-social-callback.
+#
+# Existing accounts: anyone who signed up and never confirmed *before* this was
+# applied has no marker, so they read as deactivated (social sign-in shows the
+# deactivated message, password reset is refused). Backfill them once — inactive
+# users with no last_login that came through ietf-enrollment — by setting
+# `attributes.pending_verification: true`.
+context: {}
+entries:
+
+# --- Policies ----------------------------------------------------------------
+- attrs:
+    execution_logging: false
+    expression: |
+      # Bound to manual enrollment's user write binding: the account it creates is
+      # inactive until the confirmation link is clicked. prompt_data keys prefixed
+      # `attributes.` are written into user.attributes by the write stage.
+      request.context["prompt_data"]["attributes.pending_verification"] = True
+      return True
+    name: ietf-account-mark-pending-verification
+  conditions: []
+  identifiers:
+    pk: 9ee4912b-29ae-4f3b-8cdd-3840d3717ff2
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: |
+      # Bound to the first stage after an email stage that activates the user
+      # (enrollment's login stage, recovery's new-password prompt). Once the
+      # account is active it is no longer pending; drop the marker so a later
+      # deactivation reads as one. Mutates the plan's own pending_user, because
+      # a later user write stage (recovery) saves that object whole.
+      user = request.context.get("pending_user")
+      if user and user.pk and user.is_active:
+          if user.attributes.pop("pending_verification", None) is not None:
+              user.save(update_fields=["attributes"])
+      return True
+    name: ietf-account-clear-pending-verification
+  conditions: []
+  identifiers:
+    pk: e87eb2d4-30e6-4e0c-9610-cbb37937ed72
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: |
+      # True = deny: the pending user exists and was deactivated (not merely
+      # awaiting email confirmation — see this blueprint's header).
+      user = request.context.get("pending_user")
+      if not user or not user.pk or user.is_active:
+          return False
+      awaiting_confirmation = (
+          bool(user.attributes.get("pending_verification")) and user.last_login is None
+      )
+      return not awaiting_confirmation
+    name: ietf-account-is-deactivated
+  conditions: []
+  identifiers:
+    pk: 2e4335c4-865c-4815-be49-b52f1cb8bbe2
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+- attrs:
+    execution_logging: false
+    expression: |
+      # True = deny: the pending user signed up but never clicked the
+      # confirmation link. Exact complement of ietf-account-is-deactivated among
+      # inactive accounts.
+      user = request.context.get("pending_user")
+      if not user or not user.pk or user.is_active:
+          return False
+      return bool(user.attributes.get("pending_verification")) and user.last_login is None
+    name: ietf-account-is-pending-verification
+  conditions: []
+  identifiers:
+    pk: bcee96e9-9935-4fa2-9e61-643ce464b86a
+  model: authentik_policies_expression.expressionpolicy
+  permissions: []
+  state: present
+
+# --- Deny stages -------------------------------------------------------------
+- attrs:
+    deny_message: Your account has been deactivated. Contact support@ietf.org if you
+      believe this is an error.
+  conditions: []
+  identifiers:
+    name: ietf-account-deactivated
+    pk: fa1c4f82-3134-4d6e-a572-20da9b3f2d6c
+  model: authentik_stages_deny.denystage
+  permissions: []
+  state: present
+- attrs:
+    deny_message: Your account hasn't been activated yet. Use the link in the
+      confirmation email we sent you, or reset your password to get a new one.
+  conditions: []
+  identifiers:
+    name: ietf-account-pending-verification
+    pk: eced5d6c-bf07-47c3-becb-6d7236ea9918
+  model: authentik_stages_deny.denystage
+  permissions: []
+  state: present
+
+# --- Manual enrollment (ietf-enrollment) -------------------------------------
+# Mark on the user write binding (after username / defaults / note-well, 0–2).
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 3
+    pk: 4f22f658-b513-4e2d-a6a6-2ad453ed491e
+    policy: 9ee4912b-29ae-4f3b-8cdd-3840d3717ff2
+    target: 699c532f-b3e9-4cec-8ba0-156a8eb21f0c
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+# Clear on the login stage binding (order 30), right after the email stage
+# (order 20) activated the account.
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 43d20e71-6b6a-489c-951b-909195c7f240
+    policy: e87eb2d4-30e6-4e0c-9610-cbb37937ed72
+    target: 06bad14c-5e55-4b21-8234-b97832d02e9d
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+
+# --- Recovery (ietf-recovery) ------------------------------------------------
+# Deny deactivated accounts after the captcha (order 5) and before the email
+# stage (order 10) — no reset mail, and no reactivation. Accounts awaiting
+# confirmation pass: the reset is how they get a fresh link.
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 7
+    pk: dbdd3661-092d-46c4-9345-8c2f03f43264
+    stage: fa1c4f82-3134-4d6e-a572-20da9b3f2d6c
+    target: ac74bf8e-5ce6-4a38-83c6-4338ad0f99fa
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 497a0a49-e4f5-432b-bef9-f68884aaa340
+    policy: 2e4335c4-865c-4815-be49-b52f1cb8bbe2
+    target: dbdd3661-092d-46c4-9345-8c2f03f43264
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+# Clear on the new-password prompt binding (order 20), right after the email
+# stage (order 10) activated the account.
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 363684c2-6701-421c-bfa3-08d3b8111f60
+    policy: e87eb2d4-30e6-4e0c-9610-cbb37937ed72
+    target: 0d90bccf-8373-4312-b2af-285831623f53
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+
+# --- Social sign-in (ietf-social-callback) -----------------------------------
+# Both before the user login stage (order 10), which would otherwise refuse an
+# inactive user with "Unknown error". Order 0 is ietf-github-signin-disabled.
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 1
+    pk: ed80e26f-7013-40c9-be22-6b5fdcefefd2
+    stage: fa1c4f82-3134-4d6e-a572-20da9b3f2d6c
+    target: 4a517065-bb38-4f10-a6e6-7cae20778535
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: 712b9538-dafc-4482-bb71-0385ff353fdb
+    policy: 2e4335c4-865c-4815-be49-b52f1cb8bbe2
+    target: ed80e26f-7013-40c9-be22-6b5fdcefefd2
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+- attrs:
+    evaluate_on_plan: false
+    invalid_response_action: retry
+    policy_engine_mode: any
+    re_evaluate_policies: true
+  conditions: []
+  identifiers:
+    order: 2
+    pk: 5774f1b1-800f-4348-aead-16e517021cd1
+    stage: eced5d6c-bf07-47c3-becb-6d7236ea9918
+    target: 4a517065-bb38-4f10-a6e6-7cae20778535
+  model: authentik_flows.flowstagebinding
+  permissions: []
+  state: present
+- attrs:
+    enabled: true
+    failure_result: false
+    group: null
+    negate: false
+    timeout: 30
+    user: null
+  conditions: []
+  identifiers:
+    order: 0
+    pk: e17aefbe-f72d-4608-aba5-0c58b6d48c23
+    policy: bcee96e9-9935-4fa2-9e61-643ce464b86a
+    target: 5774f1b1-800f-4348-aead-16e517021cd1
+  model: authentik_policies.policybinding
+  permissions: []
+  state: present
+metadata:
+  labels:
+    blueprints.goauthentik.io/description: IETF account status (pending verification vs. deactivated)
+  name: ietf-account-status
+version: 1

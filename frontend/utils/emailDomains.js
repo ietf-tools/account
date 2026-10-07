@@ -9,7 +9,8 @@
 // address is actually written:
 //   * registration -> an authentik policy on both enrollment flows, since the SPA
 //     drives those straight against authentik and never touches our backend
-//     (authentik/ietf-flows/ietf-blocked-email-domains.yaml);
+//     (`ietf-enrollment-allow-email-domain`, in authentik/ietf-flows/ietf-enrollment.yaml
+//     and ietf-social-enrollment.yaml);
 //   * recovery addresses and the primary-address change -> the backend routes.
 //
 // Matching: a domain matches that hostname EXACTLY, so "ietf.org" blocks x@ietf.org

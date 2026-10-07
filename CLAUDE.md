@@ -191,7 +191,7 @@ fresh cookie jar per `begin`.)
   does *not* log anyone out. The backend's in-memory session (cookie `sessionId`) now holds **only**
   the legacy migration's two-step handoff; multi-instance would still want a shared store there.
 - **Blocked email domains live in three places, and only two of them are gates.**
-  `BLOCKED_EMAIL_DOMAINS` (default `ietf.org`; hostnames matched **exactly** — subdomains are not
+  `BLOCKED_EMAIL_DOMAINS` (default `ietf.org,rfc-editor.org`; hostnames matched **exactly** — subdomains are not
   implied, since `staff.ietf.org` and friends are real personal mailboxes) is read by
   [backend/lib/config.ts](backend/lib/config.ts) *and* [nuxt.config.ts](nuxt.config.ts), so one env var
   drives the backend refusals (recovery addresses, verified email change — matching in
@@ -199,7 +199,9 @@ fresh cookie jar per `begin`.)
   ([frontend/utils/emailDomains.js](frontend/utils/emailDomains.js), a hand-kept twin of that matcher).
   **Registration is gated by neither** — the browser drives the enrollment flows straight against
   authentik, so that gate is an authentik policy with its own copy of the list
-  ([ietf-blocked-email-domains.yaml](authentik/ietf-flows/ietf-blocked-email-domains.yaml)); adding a
+  (`ietf-enrollment-allow-email-domain`, exported in both
+  [ietf-enrollment.yaml](authentik/ietf-flows/ietf-enrollment.yaml) and
+  [ietf-social-enrollment.yaml](authentik/ietf-flows/ietf-social-enrollment.yaml)); adding a
   domain means editing the `.env` *and* that policy. The policy is bound two ways because the two
   flows differ: a **validation policy** on manual enrollment's prompt stage (the user typed the
   address and can fix it — the message lands in `non_field_errors`), and a **Deny stage** on social
@@ -233,6 +235,23 @@ fresh cookie jar per `begin`.)
   challenge FlowExecutor already renders. That flow is shared by all three sources, so the expression
   must check the source slug. Disconnecting clears the flag first (it requires a live connection), or
   it would outlive the link and silently block a later reconnect.
+- **"Not activated yet" vs. "deactivated" is `attributes.pending_verification`, not `is_active`.**
+  authentik has one switch for both: manual sign-up creates the account inactive until the
+  confirmation link, and deactivating (banning) flips the same flag. So manual enrollment stamps
+  `attributes.pending_verification = true` and a policy removes it once a flow activates the
+  account (enrollment's email stage, or a password reset). Inactive **with** the marker and no
+  `last_login` = awaiting confirmation; inactive otherwise = deactivated — fail-closed, so a plain
+  admin-UI deactivation counts as a ban. All of it is in
+  [ietf-account-status.yaml](authentik/ietf-flows/ietf-account-status.yaml) (hand-written, applied on
+  top of the exports). Without it, two things broke: a deactivated user returning from a social login
+  hit the user login stage's bare `stage_invalid()` (rendered by authentik as "Unknown error"), and
+  the recovery flow's email stage (`activate_user_on_success: true`, which lets unconfirmed sign-ups
+  use a reset as "resend my link") reactivated banned accounts. Now Deny stages on
+  `ietf-social-callback` and `ietf-recovery` refuse deactivated accounts with a real message, and the
+  backend's [account-recovery.ts](backend/routes/account-recovery.ts) refuses them too. Password
+  sign-in is untouched: Django won't authenticate an inactive user, so it answers "Invalid password".
+  Any new path that activates an account must also clear the marker. FlowExecutor swaps any remaining
+  "Unknown error" for a generic message (`accessDeniedMessage`).
 - **Admin API token** (`AUTHENTIK_API_TOKEN`) is needed by every backend feature that writes or reads
   what the browser can't — migration, avatar/portrait, email change, and the GitHub attributes above
   (`/core/users/me/` omits `attributes` entirely). It is **never** in the auth path.

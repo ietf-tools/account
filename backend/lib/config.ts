@@ -47,9 +47,9 @@ export const config = {
   // nuxt.config.ts reads this SAME env var, so one setting drives the backend gate
   // and the SPA's inline check. Registration is neither one's gate — the browser
   // drives the enrollment flow straight against authentik, so that gate is a policy
-  // over there, holding its own copy of the list (see
-  // authentik/ietf-flows/ietf-blocked-email-domains.yaml — keep the three in sync).
-  blockedEmailDomains: parseDomainList(process.env.BLOCKED_EMAIL_DOMAINS ?? 'ietf.org'),
+  // over there, holding its own copy of the list (the ietf-enrollment-allow-email-domain
+  // policy in authentik/ietf-flows/ietf-enrollment.yaml — keep the three in sync).
+  blockedEmailDomains: parseDomainList(process.env.BLOCKED_EMAIL_DOMAINS ?? 'ietf.org,rfc-editor.org'),
 
   session: {
     secret: required('SESSION_SECRET'),

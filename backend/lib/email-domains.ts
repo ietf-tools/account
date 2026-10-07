@@ -13,8 +13,9 @@
  * from this file, because they run somewhere this module can't:
  *   * frontend/utils/emailDomains.js — the SPA's inline check, fed by the same env
  *     var through nuxt.config.ts;
- *   * authentik/ietf-flows/ietf-blocked-email-domains.yaml — the registration gate,
- *     which runs inside authentik as a policy expression.
+ *   * the `ietf-enrollment-allow-email-domain` policy (exported in
+ *     authentik/ietf-flows/ietf-enrollment.yaml and ietf-social-enrollment.yaml) —
+ *     the registration gate, which runs inside authentik as a policy expression.
  *
  * ── Matching ──────────────────────────────────────────────────────────────────
  * A domain matches that hostname EXACTLY and nothing else: "ietf.org" blocks

@@ -103,6 +103,7 @@ entries:
     interactive: true
     js_url: https://challenges.cloudflare.com/turnstile/v0/api.js
     public_key: 0x4AAAAAAEFstHgQxtGrOk4E
+    request_content_type: application/x-www-form-urlencoded
     score_max_threshold: 1.0
     score_min_threshold: 0.5
   conditions: []
@@ -261,5 +262,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-08-07 20:02:23.607023+00:00
+  name: authentik Export - 2026-10-07 01:17:03.424033+00:00
 version: 1

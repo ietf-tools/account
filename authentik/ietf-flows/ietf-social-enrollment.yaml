@@ -56,19 +56,19 @@ entries:
     expression: "# Keep in step with BLOCKED_EMAIL_DOMAINS in the app's .env \u2014\
       \ see this\n# blueprint's header. Bare hostnames, lower-case, no leading \"\
       @\". Matched\n# exactly: subdomains are NOT implied, list them if you want them\
-      \ blocked.\nBLOCKED_EMAIL_DOMAINS = [\"ietf.org\"]\n\nprompt_data = request.context.get(\"\
-      prompt_data\") or {}\nemail = (prompt_data.get(\"email\") or \"\").strip().lower()\n\
-      if not email:\n    # Social enrollment seeds prompt_data from the source before\
-      \ the flow\n    # runs; should some source path ever not, fall back to the pending\
-      \ user\n    # the source flow manager built.\n    pending = request.context.get(\"\
-      pending_user\")\n    email = (getattr(pending, \"email\", \"\") or \"\").strip().lower()\n\
-      \n# No address to judge \u2014 not this policy's call to make. The sign-up form\n\
-      # requires one, and a source that supplies none can't be supplying a blocked\n\
-      # one either.\nhost = email.rpartition(\"@\")[2].rstrip(\".\")\nif not host:\n\
-      \    return True\n\nif host in BLOCKED_EMAIL_DOMAINS:\n    ak_message(\n   \
-      \     f\"Addresses at {host} cannot be used for an IETF account. \"\n      \
-      \  \"Please use a personal address you will keep long-term.\"\n    )\n    return\
-      \ False\nreturn True"
+      \ blocked.\nBLOCKED_EMAIL_DOMAINS = [\"ietf.org\", \"rfc-editor.org\"]\n\nprompt_data\
+      \ = request.context.get(\"prompt_data\") or {}\nemail = (prompt_data.get(\"\
+      email\") or \"\").strip().lower()\nif not email:\n    # Social enrollment seeds\
+      \ prompt_data from the source before the flow\n    # runs; should some source\
+      \ path ever not, fall back to the pending user\n    # the source flow manager\
+      \ built.\n    pending = request.context.get(\"pending_user\")\n    email = (getattr(pending,\
+      \ \"email\", \"\") or \"\").strip().lower()\n\n# No address to judge \u2014\
+      \ not this policy's call to make. The sign-up form\n# requires one, and a source\
+      \ that supplies none can't be supplying a blocked\n# one either.\nhost = email.rpartition(\"\
+      @\")[2].rstrip(\".\")\nif not host:\n    return True\n\nif host in BLOCKED_EMAIL_DOMAINS:\n\
+      \    ak_message(\n        f\"Addresses at {host} cannot be used for an IETF\
+      \ account. \"\n        \"Please use a personal address you will keep long-term.\"\
+      \n    )\n    return False\nreturn True"
     name: ietf-enrollment-allow-email-domain
   conditions: []
   identifiers:
@@ -78,18 +78,25 @@ entries:
   state: present
 - attrs:
     execution_logging: false
-    expression: |
-      prompt_data = request.context["prompt_data"]
+    expression: 'prompt_data = request.context["prompt_data"]
+
 
       # The username is the address lower-cased; the email keeps the casing the user
+
       # entered (or the source supplied). The username is the case-stable key: the
+
       # app backend looks accounts up by it (findUserByUsername) wherever it has to
+
       # match an address regardless of how it was typed, e.g. legacy migration.
+
       email = prompt_data["email"].strip()
+
       prompt_data["email"] = email
+
       prompt_data["username"] = email.lower()
 
-      return True
+
+      return True'
     name: ietf-enrollment-set-username-from-email
   conditions: []
   identifiers:
@@ -180,6 +187,7 @@ entries:
     interactive: true
     js_url: https://challenges.cloudflare.com/turnstile/v0/api.js
     public_key: 0x4AAAAAAEFstHgQxtGrOk4E
+    request_content_type: application/x-www-form-urlencoded
     score_max_threshold: 1.0
     score_min_threshold: 0.5
   conditions: []
@@ -356,5 +364,5 @@ entries:
 metadata:
   labels:
     blueprints.goauthentik.io/generated: 'true'
-  name: authentik Export - 2026-08-17 05:03:42.017948+00:00
+  name: authentik Export - 2026-10-07 01:18:02.439085+00:00
 version: 1

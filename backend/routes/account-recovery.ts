@@ -115,6 +115,10 @@ export default async function accountRecoveryRoutes(app: FastifyInstance) {
     if (!user) {
       return null
     }
+    // Deactivated since the link was mailed — see step 1.
+    if (user.is_active === false) {
+      return null
+    }
     if (String(user.attributes?.[PENDING_KEY] ?? '').toLowerCase() !== claims.email.toLowerCase()) {
       return null
     }
@@ -137,6 +141,15 @@ export default async function accountRecoveryRoutes(app: FastifyInstance) {
       const user = await findAccount(account)
       if (!user) {
         request.log.info('account-recovery: no such account (reported as sent)')
+        return { sent: true }
+      }
+
+      // A deactivated account is a ban (see authentik/ietf-flows/ietf-account-status.yaml):
+      // recovery must not hand it a new password and primary address. An account
+      // still awaiting email confirmation is inactive too, but it can't have a
+      // recovery address yet (those are added while signed in), so this loses nothing.
+      if (user.is_active === false) {
+        request.log.info({ pk: user.pk }, 'account-recovery: account deactivated (reported as sent)')
         return { sent: true }
       }
 
