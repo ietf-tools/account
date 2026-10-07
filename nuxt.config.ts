@@ -104,6 +104,12 @@ export default defineNuxtConfig({
   srcDir: 'frontend/',
   ssr: false,
   modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt'],
+  // Tokens tab temporarily disabled: the page (and useTokens) stay in the tree
+  // but get no route, so /account/tokens can't be reached. Its sidebar item is
+  // commented out in layouts/account.vue. Creation is blocked for real by a
+  // Cloudflare WAF rule (see "Edge routing & redirects" in README.md) — this only
+  // hides the UI. Remove this entry and restore the sidebar item to re-enable.
+  ignore: ['frontend/pages/account/tokens.vue'],
   runtimeConfig: {
     public: {
       apiUrl,

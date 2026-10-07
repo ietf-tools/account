@@ -252,6 +252,14 @@ fresh cookie jar per `begin`.)
   sign-in is untouched: Django won't authenticate an inactive user, so it answers "Invalid password".
   Any new path that activates an account must also clear the marker. FlowExecutor swaps any remaining
   "Unknown error" for a generic message (`accessDeniedMessage`).
+- **The Tokens tab is temporarily disabled, and the real block is at the edge.** authentik lets any
+  signed-in user `POST /api/v3/core/tokens/` (`rbac_allow_create_without_perm`), with no group or
+  policy gate. So creation is refused by a Cloudflare WAF rule (W1 in README "Edge routing &
+  redirects"), not by the SPA. The page and `useTokens` stay in the tree. Its route is excluded by
+  `ignore` in [nuxt.config.ts](nuxt.config.ts), and its sidebar item is commented out in
+  [layouts/account.vue](frontend/layouts/account.vue). Note that `ignore` patterns are relative to the
+  **root dir**, not `srcDir`, hence the `frontend/` prefix. Group-restricted creation would need a
+  backend route using the admin token.
 - **Admin API token** (`AUTHENTIK_API_TOKEN`) is needed by every backend feature that writes or reads
   what the browser can't — migration, avatar/portrait, email change, and the GitHub attributes above
   (`/core/users/me/` omits `attributes` entirely). It is **never** in the auth path.

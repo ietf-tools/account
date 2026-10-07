@@ -453,6 +453,34 @@ that's safe: the browser only *loads* `/if/flow/ietf-{enrollment,recovery}/` fro
 the email links — those pages drive the executor API directly and never hit that
 path.)
 
+### Blocked authentik endpoints (WAF)
+
+Hiding something in the SPA is not a gate: the browser talks to authentik's API
+directly, so a signed-in user can call any endpoint authentik allows them, with
+their own session cookie. Where authentik itself has no switch to turn a
+self-service endpoint off, a **Cloudflare WAF custom rule** (Security → WAF →
+Custom rules, action **Block**) refuses it at the edge instead:
+
+| # | Blocks | Expression (host `account.ietf.org`) | Why |
+| --- | --- | --- | --- |
+| W1 | Token / app-password creation | `http.request.method eq "POST" and http.request.uri.path in {"/api/v3/core/tokens/" "/api/v3/core/tokens"}` | Token creation is temporarily disabled. authentik lets **any** authenticated user create API tokens and app passwords for themselves (`TokenViewSet.rbac_allow_create_without_perm = True`); no group, permission or policy restricts it |
+
+Notes on W1:
+
+- **Match both spellings.** authentik's API router accepts paths with and without
+  the trailing slash.
+- **It blocks admins too.** The edge can't see authentik groups, and
+  `/if/admin/` creates tokens through the same endpoint. To mint a token as an
+  admin, pause the rule briefly, or add an exemption (e.g. `and not ip.src in
+  {…}`).
+- **Existing tokens keep working.** Listing, copying and deleting existing
+  tokens stays allowed. Revoke tokens in the admin UI if they should stop working.
+- **The UI is hidden to match.** The Tokens tab is turned off in the SPA (the
+  `ignore` entry in [`nuxt.config.ts`](nuxt.config.ts) and the commented
+  sidebar item in [`layouts/account.vue`](frontend/layouts/account.vue)).
+  Re-enable both together with lifting the rule, or replace the rule with a
+  group-checked backend route when only some groups should mint tokens.
+
 ### Third-party OAuth logins
 
 authentik is also an **OAuth/OIDC provider**: other apps send users to it to sign
