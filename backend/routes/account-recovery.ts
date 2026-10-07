@@ -116,7 +116,7 @@ export default async function accountRecoveryRoutes(app: FastifyInstance) {
       return null
     }
     // Deactivated since the link was mailed — see step 1.
-    if (user.is_active === false) {
+    if (user.is_active !== true) {
       return null
     }
     if (String(user.attributes?.[PENDING_KEY] ?? '').toLowerCase() !== claims.email.toLowerCase()) {
@@ -148,7 +148,7 @@ export default async function accountRecoveryRoutes(app: FastifyInstance) {
       // recovery must not hand it a new password and primary address. An account
       // still awaiting email confirmation is inactive too, but it can't have a
       // recovery address yet (those are added while signed in), so this loses nothing.
-      if (user.is_active === false) {
+      if (user.is_active !== true) {
         request.log.info({ pk: user.pk }, 'account-recovery: account deactivated (reported as sent)')
         return { sent: true }
       }
