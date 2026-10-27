@@ -31,13 +31,31 @@ export interface AuthentikUser {
   email?: string
   avatar?: string
   is_active?: boolean
+  is_superuser?: boolean
+  uuid?: string
+  type?: string
+  /** pks of the groups the user is *directly* in (parents not included). */
+  groups?: string[]
   attributes?: Attributes
   [key: string]: unknown
 }
 
+/** An authentik group, as far as we read it. */
+export interface AuthentikGroup {
+  pk: string
+  name: string
+  is_superuser?: boolean
+  /** Single parent pk (authentik before multi-parent groups). */
+  parent?: string | null
+  /** Parent pks (authentik with multi-parent groups). */
+  parents?: string[]
+  [key: string]: unknown
+}
+
 /** A paginated authentik list response, as far as we read it. */
-interface AuthentikListResponse {
-  results?: AuthentikUser[]
+interface AuthentikListResponse<T = AuthentikUser> {
+  pagination?: { next?: number }
+  results?: T[]
 }
 
 /**
@@ -143,6 +161,93 @@ export async function findUserByEmail(email: string): Promise<AuthentikUser | nu
   return body.results?.[0] ?? null
 }
 
+// Exact-match guarded like findUserByUsername: if the filter were ever ignored
+// (an unknown query param is silently dropped by authentik's API), results[0]
+// would be an arbitrary user — and the caller of this one deactivates it.
+export async function findUserByUuid(uuid: string): Promise<AuthentikUser | null> {
+  const body: AuthentikListResponse = await adminFetch(
+    `/core/users/?uuid=${encodeURIComponent(uuid)}`
+  )
+  return body.results?.find((u) => u.uuid === uuid) ?? null
+}
+
+export async function getGroup(groupPk: string): Promise<AuthentikGroup> {
+  return adminFetch(`/core/groups/${encodeURIComponent(groupPk)}/?include_users=false`)
+}
+
+// Every row of a paginated admin list endpoint (`path` already carries its own
+// filters). authentik's pagination reports `next` as a page number, 0 at the end.
+async function adminListAll<T>(path: string): Promise<T[]> {
+  const rows: T[] = []
+  const separator = path.includes('?') ? '&' : '?'
+  for (let page = 1; page; ) {
+    const body: AuthentikListResponse<T> = await adminFetch(
+      `${path}${separator}page=${page}&page_size=100`
+    )
+    rows.push(...(body.results ?? []))
+    page = body.pagination?.next ?? 0
+  }
+  return rows
+}
+
+// The pk a list row belongs to, whether the API answered with the pk itself or an
+// embedded user object (it varies by endpoint and authentik version).
+function rowUserPk(row: { user?: unknown }): string | null {
+  const user = row.user
+  if (typeof user === 'string' || typeof user === 'number') {
+    return String(user)
+  }
+  if (user && typeof user === 'object' && 'pk' in user) {
+    return String(user.pk)
+  }
+  return null
+}
+
+/**
+ * Sign a user out everywhere: delete their authentik sessions and their OAuth2
+ * access and refresh tokens (so no app can refresh its way back in). Access tokens
+ * an app verifies locally stay valid until they expire — deleting the row only
+ * stops introspection and userinfo from honouring them.
+ *
+ * Each list is filtered server-side, then re-checked by user pk before anything
+ * is deleted — the same "never trust that a filter applied" guard as
+ * findUserByUuid, since the admin token sees every user's rows.
+ */
+export async function revokeUserSessions(
+  user: AuthentikUser
+): Promise<{ sessions: number; accessTokens: number; refreshTokens: number }> {
+  const pk = String(user.pk)
+  const mine = <T extends { user?: unknown }>(rows: T[]) => rows.filter((row) => rowUserPk(row) === pk)
+
+  const sessions = mine(
+    await adminListAll<{ uuid: string; user?: unknown }>(
+      `/core/authenticated_sessions/?user__username=${encodeURIComponent(user.username)}`
+    )
+  )
+  for (const session of sessions) {
+    await adminFetch(`/core/authenticated_sessions/${encodeURIComponent(session.uuid)}/`, {
+      method: 'DELETE'
+    })
+  }
+
+  const counts = { sessions: sessions.length, accessTokens: 0, refreshTokens: 0 }
+  for (const [kind, key] of [
+    ['access_tokens', 'accessTokens'],
+    ['refresh_tokens', 'refreshTokens']
+  ] as const) {
+    const tokens = mine(
+      await adminListAll<{ pk: number | string; user?: unknown }>(
+        `/oauth2/${kind}/?user=${encodeURIComponent(pk)}`
+      )
+    )
+    for (const token of tokens) {
+      await adminFetch(`/oauth2/${kind}/${encodeURIComponent(token.pk)}/`, { method: 'DELETE' })
+    }
+    counts[key] = tokens.length
+  }
+  return counts
+}
+
 export async function findUserByUsername(username: string): Promise<AuthentikUser | null> {
   const body: AuthentikListResponse = await adminFetch(
     `/core/users/?username=${encodeURIComponent(username)}`
@@ -207,7 +312,13 @@ export async function getUser(
 // clientHeaders.
 export async function patchUser(
   userPk: string | number,
-  body: { email?: string; username?: string; name?: string; attributes?: Attributes },
+  body: {
+    email?: string
+    username?: string
+    name?: string
+    is_active?: boolean
+    attributes?: Attributes
+  },
   client?: ClientIdentity
 ): Promise<AuthentikUser> {
   return adminFetch(

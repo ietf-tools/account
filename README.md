@@ -281,8 +281,10 @@ backend/                (only for features that need the admin token — not aut
     attributes.ts       Narrowing the free-form JSON in user `attributes`
     errors.ts           errorMessage(): reading a message off a caught `unknown`
     datatracker-migration.ts  Datatracker migration API client (migration only)
+    service-auth.ts     Verifies other apps' bearer tokens (service API)
   routes/
     migration.ts        Legacy → authentik account migration (the only auth-ish route)
+    service.ts          Service API for our other apps (deactivate an account)
     health.ts
 frontend/
   app.vue, layouts/, pages/     login, register, recover, migrate, index (protected)
@@ -340,6 +342,10 @@ All config is environment-driven — see [`.env.sample`](.env.sample). Key value
 | `AUTHENTIK_FLOW_*` | Slugs for the authentication / enrollment / recovery flows |
 | `SESSION_SECRET` | Signs the session cookie |
 | `DATATRACKER_MIGRATION_API_ENDPOINT` / `_API_TOKEN` / `_PUBLIC_KEY` | Datatracker's migration API, for migration |
+| `SERVICE_API_USER_CLIENTS` | Sign-in providers whose users' tokens the service API accepts (`<application-slug>=<client-id>`, comma-separated) |
+| `SERVICE_API_USER_GROUPS` | Groups a user token must carry to be accepted (default `team-staff,team-dev`) |
+| `SERVICE_API_CLIENTS` | Dedicated providers whose client_credentials tokens the service API accepts (same format) |
+| `SERVICE_PROTECTED_GROUPS` | Groups whose members the service API won't deactivate (default `team-staff,team-dev`) |
 
 The `AUTHENTIK_FLOW_*` slugs default to ietf's custom flows
 (`ietf-login`, etc.). Point them at your brand's configured
@@ -365,6 +371,67 @@ The custom, backend-only flow for users crossing over from the old Django system
    token), carrying over the name and the Datatracker `person_uuid` /
    `legacy_sub`, and sets the password.
 4. The user signs in normally.
+
+## Service API (other apps → deactivate an account)
+
+Our other applications on the same authentik can deactivate an account (spam,
+abuse) without an admin token of their own — see
+[`backend/routes/service.ts`](backend/routes/service.ts):
+
+```http
+POST /app/api/service/deactivate-user
+Authorization: Bearer <authentik-issued access token>
+Content-Type: application/json
+
+{ "uuid": "<authentik user UUID>", "reason": "spam" }
+```
+
+- **Identify the user by UUID**: the `account_uuid` claim of the `profile` scope.
+  Not `sub` (authentik's default is a hash computed on the fly, which can't be
+  looked up) and not email/username (both change on a verified email change).
+- **Answers:** `200 { deactivated, alreadyInactive, revoked }`; `400` bad UUID;
+  `401` bad token; `403` caller not allowed, or protected account (superuser,
+  service account, or a member of `SERVICE_PROTECTED_GROUPS` directly or via a
+  parent group); `404` no such user; `502` authentik error. Safe to retry.
+- **What it does:** `is_active: false`, drops `attributes.pending_verification`
+  (otherwise the recovery flow could reactivate it — see
+  [ietf-account-status.yaml](authentik/ietf-flows/ietf-account-status.yaml)),
+  records `attributes.deactivation = { by: { app, user?, user_uuid? }, reason, at }`,
+  and deletes the user's authentik sessions and OAuth2 access/refresh tokens.
+  Access tokens other apps verify locally stay valid until they expire.
+
+**Authentication** ([`backend/lib/service-auth.ts`](backend/lib/service-auth.ts))
+accepts two kinds of token. Either way the signature is checked against the
+provider's JWKS (asymmetric keys only — a provider without a signing key signs
+with HS256 and its client secret, which we refuse), `aud`/`azp` must be the
+provider's client id, and `iss` must be that provider's (per-provider issuer mode,
+authentik's default).
+
+*A person acting through an app* (`SERVICE_API_USER_CLIENTS`) — how reef's
+moderators do it. The app forwards the signed-in person's own access token from
+its existing sign-in provider; it's admitted only if its `groups` claim names one
+of `SERVICE_API_USER_GROUPS` (default `team-staff,team-dev`), and the record names
+that person. Setup: add `<sign-in application slug>=<client id>` to
+`SERVICE_API_USER_CLIENTS`; the app must keep the access token server-side (e.g.
+mozilla-django-oidc's `OIDC_STORE_ACCESS_TOKEN`) and refresh it. The `groups`
+claim is as of token issue, so keep that provider's access token validity short —
+a removed moderator keeps the right until their token expires.
+
+*An app acting on its own* (`SERVICE_API_CLIENTS`) — for automation. For each such
+app, in authentik:
+
+1. Create a **dedicated** OAuth2 provider + application (e.g. `reef-service`) —
+   confidential client, a signing key, a strict dummy redirect URI. Never reuse the
+   app's sign-in provider: its users' tokens would carry the same `aud` and pass
+   with no group check (the backend refuses to boot with a provider in both lists).
+2. Bind a policy to that application that admits only its client_credentials
+   service account (`ak-<provider name>-client_credentials`, created on the first
+   token request), so no person can obtain a token for it.
+3. Add `<application-slug>=<client-id>` to `SERVICE_API_CLIENTS`.
+
+The app then gets a token with `grant_type=client_credentials`, its `client_id`
+and `client_secret` at `/application/o/token/`, and sends it as a bearer token.
+Revoke it by rotating its secret or disabling its provider.
 
 ## Production build & deploy
 

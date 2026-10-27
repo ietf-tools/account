@@ -27,6 +27,34 @@ function parseDomainList(value: string): string[] {
     .filter(Boolean)
 }
 
+// Parse SERVICE_API_CLIENTS / SERVICE_API_USER_CLIENTS: comma/whitespace separated
+// `<application-slug>=<client-id>` pairs, one per authentik OAuth2 provider whose
+// tokens are accepted (see lib/service-auth.ts). A malformed entry throws at boot
+// rather than silently locking that app out.
+function parseServiceClients(name: string): { slug: string; clientId: string }[] {
+  return (process.env[name] ?? '')
+    .split(/[,\s]+/)
+    .filter(Boolean)
+    .map((entry) => {
+      const match = /^([a-z0-9_-]+)=(\S+)$/i.exec(entry)
+      if (!match) {
+        throw new Error(
+          `Invalid ${name} entry "${entry}" (expected <application-slug>=<client-id>)`
+        )
+      }
+      return { slug: match[1], clientId: match[2] }
+    })
+}
+
+// A comma separated list of authentik group names, kept as written: names are
+// case-sensitive and may contain spaces ("authentik Admins"), so only commas split.
+function parseNameList(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
 export const config = {
   port: Number(process.env.BACKEND_PORT ?? 4000),
   isProd: process.env.NODE_ENV === 'production',
@@ -130,5 +158,25 @@ export const config = {
     forcePathStyle: process.env.AVATAR_S3_FORCE_PATH_STYLE
       ? process.env.AVATAR_S3_FORCE_PATH_STYLE === 'true'
       : Boolean(process.env.AVATAR_S3_ENDPOINT)
+  },
+
+  // Service API for our other apps on the same authentik (currently just
+  // deactivating abusive accounts — see routes/service.ts). Callers send an
+  // authentik-issued bearer token, verified in lib/service-auth.ts, of one of two
+  // kinds — each list empty = that kind is refused:
+  //   * clients: the app itself, via the client_credentials grant on a provider
+  //     dedicated to this API (for automation);
+  //   * userClients: a person signed in to the app, forwarding their own access
+  //     token from the app's sign-in provider; admitted only if its `groups` claim
+  //     names one of userGroups.
+  service: {
+    clients: parseServiceClients('SERVICE_API_CLIENTS'),
+    userClients: parseServiceClients('SERVICE_API_USER_CLIENTS'),
+    // Unlike protectedGroups, an empty value means *nobody*: this list grants.
+    userGroups: parseNameList(process.env.SERVICE_API_USER_GROUPS ?? 'team-staff,team-dev'),
+    // Accounts in any of these groups (directly or through a parent group) can't
+    // be deactivated through the service API. An empty value falls back to the
+    // default rather than protecting nobody.
+    protectedGroups: parseNameList(process.env.SERVICE_PROTECTED_GROUPS || 'team-staff,team-dev')
   }
 }

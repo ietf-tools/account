@@ -38,7 +38,9 @@ backend/
   lib/attributes.ts   Narrowing the free-form JSON in user `attributes` (it's all `unknown`)
   lib/errors.ts       errorMessage(): reading a message off a caught `unknown`
   lib/datatracker-migration.ts  Datatracker migration API client (migration only)
+  lib/service-auth.ts Verifies other apps' bearer tokens (user or client_credentials) for the service API
   routes/migration.ts Legacy → authentik account migration (the only auth-ish backend route)
+  routes/service.ts   Service API for our other apps: POST /service/deactivate-user
 frontend/
   components/FlowExecutor.vue  Dynamic authentik challenge renderer (the core UI)
   composables/useAuthentik.js  $fetch pointed at authentik /api/v3 (credentials + CSRF header)
@@ -260,6 +262,19 @@ fresh cookie jar per `begin`.)
   [layouts/account.vue](frontend/layouts/account.vue). Note that `ignore` patterns are relative to the
   **root dir**, not `srcDir`, hence the `frontend/` prefix. Group-restricted creation would need a
   backend route using the admin token.
+- **The service API (`routes/service.ts`) takes authentik-issued bearer tokens from our other apps.**
+  Two kinds, verified in [service-auth.ts](backend/lib/service-auth.ts) (signature via the
+  provider's JWKS, asymmetric only; `aud`/`azp` = client id; `iss` path): a **person's** access
+  token from an app's sign-in provider (`SERVICE_API_USER_CLIENTS`), admitted by its `groups` claim
+  (`SERVICE_API_USER_GROUPS`) — how reef's moderators act; and an **app's** `client_credentials`
+  token (`SERVICE_API_CLIENTS`) for automation, with no group check. The verifier can't tell a
+  client_credentials token from a user token of the same provider, so client-mode providers must be
+  dedicated and policy-bound to their service account — a sign-in provider listed there would admit
+  every user; boot refuses a client id in both lists. Users are identified by authentik **UUID**
+  (`account_uuid` claim of the `profile` scope): the default `sub` is a hash authentik computes on the
+  fly, so it can't be looked up. Deactivation must also drop `attributes.pending_verification` (see
+  the account-status gotcha above), and admin-API lookups there re-check results by exact match
+  because an ignored filter returns *every* user.
 - **Admin API token** (`AUTHENTIK_API_TOKEN`) is needed by every backend feature that writes or reads
   what the browser can't — migration, avatar/portrait, email change, and the GitHub attributes above
   (`/core/users/me/` omits `attributes` entirely). It is **never** in the auth path.

@@ -20,6 +20,7 @@ import datatrackerRoutes from './routes/datatracker.ts'
 import recoveryEmailsRoutes from './routes/recovery-emails.ts'
 import accountRecoveryRoutes from './routes/account-recovery.ts'
 import healthRoutes from './routes/health.ts'
+import serviceRoutes from './routes/service.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -68,6 +69,9 @@ await app.register(datatrackerRoutes, { prefix: `${config.apiPrefix}/datatracker
 await app.register(recoveryEmailsRoutes, { prefix: `${config.apiPrefix}/recovery-emails` })
 // Unauthenticated by design — the signed link is the authorisation. See the route.
 await app.register(accountRecoveryRoutes, { prefix: `${config.apiPrefix}/account-recovery` })
+// For our other apps, not browsers: bearer tokens from authentik's client_credentials
+// grant (lib/service-auth.ts), no session cookie involved.
+await app.register(serviceRoutes, { prefix: `${config.apiPrefix}/service` })
 
 // In production the built SPA (nuxt generate -> .output/public) *may* be served by
 // this same server, so the browser only ever talks to one origin. It is optional:
